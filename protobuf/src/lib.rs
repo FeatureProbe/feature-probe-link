@@ -1,24 +1,29 @@
-use std::io::Cursor;
+pub use tonic;
 
 use prost::Message;
+use std::io::Cursor;
 
-pub mod message {
+pub mod packet {
     include!(concat!(env!("OUT_DIR"), "/featureprobe.link.packet.rs"));
 }
 
-pub fn build_packet(namespace: String) -> message::Packet {
-    let msg: message::Message = message::Message {
+pub mod service {
+    include!(concat!(env!("OUT_DIR"), "/featureprobe.link.service.rs"));
+}
+
+pub fn build_packet(namespace: String) -> packet::Packet {
+    let msg: packet::Message = packet::Message {
         namespace,
         path: "path".to_owned(),
         metadata: Default::default(),
         body: vec![1, 2, 3, 4],
     };
-    let mut packet = message::Packet::default();
-    packet.packet = Some(message::packet::Packet::Message(msg));
+    let mut packet = packet::Packet::default();
+    packet.packet = Some(packet::packet::Packet::Message(msg));
     packet
 }
 
-pub fn serialize(hello: &message::Packet) -> Vec<u8> {
+pub fn serialize(hello: &packet::Packet) -> Vec<u8> {
     let mut buf = Vec::new();
     buf.reserve(hello.encoded_len());
 
@@ -26,8 +31,8 @@ pub fn serialize(hello: &message::Packet) -> Vec<u8> {
     buf
 }
 
-pub fn deserialize(buf: &[u8]) -> Result<message::Packet, prost::DecodeError> {
-    message::Packet::decode(&mut Cursor::new(buf))
+pub fn deserialize(buf: &[u8]) -> Result<packet::Packet, prost::DecodeError> {
+    packet::Packet::decode(&mut Cursor::new(buf))
 }
 
 #[cfg(test)]

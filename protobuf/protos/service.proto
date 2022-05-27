@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package featurepro.link.service;
+package featureprobe.link.service;
 
 option java_package = "com.featureprobe.link.service";
 

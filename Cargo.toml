@@ -8,6 +8,7 @@ edition = "2021"
 [workspace]
 members = [
   "protobuf",
+  "server-base",
 ]
 
 [dependencies]
