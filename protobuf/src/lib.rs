@@ -3,7 +3,7 @@ use std::io::Cursor;
 use prost::Message;
 
 pub mod message {
-    include!(concat!(env!("OUT_DIR"), "/packet.rs"));
+    include!(concat!(env!("OUT_DIR"), "/featureprobe.link.packet.rs"));
 }
 
 pub fn build_packet(namespace: String) -> message::Packet {

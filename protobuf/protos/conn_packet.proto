@@ -1,5 +1,6 @@
 syntax = "proto3";
-package packet;
+
+package featureprobe.link.packet;
 
 message Packet {
   oneof packet {

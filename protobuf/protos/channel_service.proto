@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package featurepro.link.service;
+
+option java_package = "com.featureprobe.link.service";
+
+message Trace {
+  string trace_id = 1;
+  string span_id = 2;
+}
+
+message SubReq {
+  string cid = 1;
+  string namespace = 2;
+  string key = 3;
+  string value = 4;
+  Trace trace = 5;
+}
+
+message SubResp { bool success = 1; }
+
+message BulkSubReq {
+  string cid = 1;
+  string namespace = 2;
+  map<string, string> kv = 3;
+  Trace trace = 4;
+}
+
+message BulkSubForResp { bool success = 1; }
+
+message UnSubReq {
+  string cid = 1;
+  string namespace = 2;
+  string key = 3;
+  string value = 4;
+  Trace trace = 5;
+}
+
+message UnSubResp { bool success = 1; }
+
+message PubReq {
+  string namespace = 1;
+  string path = 2;
+  bytes body = 3;
+  optional string channel_family = 4;
+  repeated string channels = 5;
+  map<string, string> metadata = 7;
+  Trace trace = 8;
+}
+
+message BulkPubReq { repeated PubReq requests = 1; }
+
+message PubResp {
+  bool success = 1;
+  repeated string channels = 2;
+  repeated PubStatus status = 3;
+}
+
+message BulkPubResp { repeated PubResp responses = 1; }
+
+message GetConnsReq {
+  string namespace = 1;
+  optional string channel_family = 2;
+  string channel = 3;
+  Trace trace = 4;
+}
+
+message Channels { repeated string channel = 1; }
+
+message Connection {
+  string cid = 1;
+  map<string, Channels> channels = 2;
+}
+
+message PubStatus {
+  Connection connection = 1;
+  bool sent = 2;
+}
+
+message GetConnsResp {
+  bool success = 1;
+  repeated Connection connections = 2;
+}
+
+message GetChannelsReq {
+  string namespace = 1;
+  optional string channel_family = 2;
+  Channels Channels = 3;
+  Trace trace = 4;
+}
+
+message GetChannelsResp {
+  string namespace = 1;
+  optional string channel_family = 2;
+  Channels Channels = 3;
+}
+
+service ChannelService {
+  rpc Subscribe(SubReq) returns (SubResp) {}
+  rpc UnSubscribe(UnSubReq) returns (UnSubResp) {}
+  rpc BulkSubscribe(BulkSubReq) returns (BulkSubForResp) {}
+  rpc Pushlish(PubReq) returns (PubResp) {}
+  rpc BulkPushlish(BulkPubReq) returns (PubResp) {}
+  rpc GetConnections(GetConnsReq) returns (GetConnsResp) {}
+  rpc GetChannels(GetChannelsReq) returns (GetChannelsResp) {}
+}
+
+message MessageReq {
+  string cid = 1;
+  map<string, string> metadata = 2;
+  map<string, Channels> channels = 3;
+  string path = 4;
+  bytes body = 5;
+  Trace trace = 6;
+}
+
+message MessageResp { int64 num = 1; }
+
+service MessageService {
+  rpc HandleMessage(MessageReq) returns (MessageResp) {}
+}

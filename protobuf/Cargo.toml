@@ -6,10 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+tonic = "0.7"
 prost = "0.10"
-# Only necessary if using Protobuf well-known types:
-prost-types = "0.10"
-bytes = "1.0"
 
 [build-dependencies]
-prost-build = { version = "0.10" }
+tonic-build = "0.7.0"

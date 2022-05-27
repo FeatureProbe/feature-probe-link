@@ -7,7 +7,7 @@ edition = "2021"
 
 [workspace]
 members = [
-  "codec",
+  "protobuf",
 ]
 
 [dependencies]
