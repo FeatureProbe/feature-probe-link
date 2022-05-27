@@ -9,6 +9,7 @@ edition = "2021"
 members = [
   "protobuf",
   "server-base",
+  "server-state",
 ]
 
 [dependencies]

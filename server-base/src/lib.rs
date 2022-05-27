@@ -5,6 +5,7 @@ mod config;
 mod conn;
 mod context;
 mod id_gen;
+mod node;
 mod utils;
 
 pub use crate::config::*;
@@ -14,6 +15,7 @@ pub use context::ConnContext;
 pub use featureprobe_link_proto::tonic;
 pub use id_gen::IdGen;
 pub use minstant;
+pub use node::{RegistryNode, ServerNode, ServiceNode};
 pub use tokio;
 pub use tonic::transport::Channel;
 
