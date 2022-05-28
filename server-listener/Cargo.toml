@@ -1,0 +1,33 @@
+[package]
+name = "server-listener"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[dependencies]
+anyhow = "1.0.22"
+bytes = "1.0"
+futures = "0.3"
+tokio-util = { version = "0.6", features = ["codec"] }
+tokio-stream = { version = "0.1", default-features = false, features = [
+	"net",
+	"time",
+	"fs",
+	"io-util",
+] }
+tokio-rustls = "0.23"
+log = "0.4"
+quinn = { version = "0.8", default-features = false, features = ["tls-rustls", "ring"] }
+rustls = "0.20"
+rustls-pemfile = "0.2.1"
+tokio-tungstenite = "0.16"
+stream-cancel = "0.8"
+parking_lot = "0.11"
+tungstenite = { version = "0.16", default-features = false, features = [
+	"rustls-tls-webpki-roots",
+] }
+rand = "^0.8"
+cached = "0.23"
+
+server-base = { path = "../server-base" }
+server-state = { path = "../server-state" }

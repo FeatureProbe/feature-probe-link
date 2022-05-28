@@ -2,9 +2,11 @@ use super::memory::MemoryRepository;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use fxhash::FxBuildHasher;
-
-use server_base::{proto::*, PushConn};
 use server_base::{tokio, Conn, CoreOperation, Dispatch};
+use server_base::{
+    BulkSubReq, Channels, ConnChannels, GetChannelsReq, GetConnsReq, Message, MessageReq, PubReq,
+    PubResp, PubStatus, PushConn, PushConnReq, SubReq, UnSubReq,
+};
 use std::borrow::ToOwned;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;

@@ -12,7 +12,8 @@ pub use crate::config::*;
 pub use crate::utils::*;
 pub use conn::Conn;
 pub use context::ConnContext;
-pub use featureprobe_link_proto::proto;
+pub use featureprobe_link_proto as codec;
+pub use featureprobe_link_proto::proto::*;
 pub use featureprobe_link_proto::tonic;
 pub use id_gen::IdGen;
 pub use minstant;
@@ -21,7 +22,6 @@ pub use tokio;
 pub use tonic::transport::Channel;
 
 use async_trait::async_trait;
-use featureprobe_link_proto::proto::*;
 use parking_lot::RwLock;
 use std::net::SocketAddr;
 
@@ -40,17 +40,12 @@ pub trait PushConn: Send + Sync {
 
 #[async_trait]
 pub trait Dispatch: Send + Sync {
-    async fn dispatch(&self, namespace: String, request: proto::MessageReq) -> bool;
+    async fn dispatch(&self, namespace: String, request: MessageReq) -> bool;
 }
 
 #[async_trait]
 pub trait BuiltinService: Send + Sync {
-    async fn on_message(
-        &self,
-        conn_id: &str,
-        peer_addr: Option<SocketAddr>,
-        message: proto::Message,
-    );
+    async fn on_message(&self, conn_id: &str, peer_addr: Option<SocketAddr>, message: Message);
 }
 
 #[async_trait]
@@ -75,7 +70,7 @@ pub trait LifeCycle: Send + Sync {
 
     fn on_conn_create(&self, conn: Conn);
 
-    fn on_message_incoming(&self, conn_id: &str, protocol: &Protocol, message: proto::Message);
+    fn on_message_incoming(&self, conn_id: &str, protocol: &Protocol, message: Message);
 
     fn on_conn_destroy(&self, conn: Conn);
 
@@ -84,14 +79,14 @@ pub trait LifeCycle: Send + Sync {
 
 pub trait SendMessage: Send + Sync {
     #[allow(clippy::result_unit_err)]
-    fn send(&self, msg: proto::Message) -> Result<(), ()>;
+    fn send(&self, msg: Message) -> Result<(), ()>;
 }
 
 pub trait RecvMessage: Send + Sync {
     type Item;
 
     #[allow(clippy::result_unit_err)]
-    fn recv(&self, item: Self::Item) -> Result<Option<proto::Message>, ()>;
+    fn recv(&self, item: Self::Item) -> Result<Option<Message>, ()>;
 }
 
 #[derive(Clone, Debug, PartialEq, Copy)]
