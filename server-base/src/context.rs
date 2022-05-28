@@ -1,7 +1,7 @@
 use crate::conn::Conn;
 use crate::Protocol;
 use crate::{LifeCycle, SendMessage};
-use featureprobe_link_proto::packet::Message;
+use featureprobe_link_proto::proto::Message;
 use std::net::SocketAddr;
 use std::sync::Arc;
 

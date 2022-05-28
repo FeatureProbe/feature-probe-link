@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 pub trait NodeOperation: Send + Sync + Clone + 'static {
-    fn halo_node(&self) -> &ServerNode;
+    fn server_node(&self) -> &ServerNode;
 
     fn registry_node(&self) -> &RegistryNode;
 
@@ -26,13 +26,12 @@ impl State {
         let node_id = rand::random::<u64>().to_string();
         let hostname = config.hostname();
         let zone = config.zone();
-        let halo_node = ServerNode::new(node_id, hostname.clone(), 6321, 1215, zone);
+        let server_node = ServerNode::new(node_id, hostname.clone(), 6321, 1215, zone);
         let registry_node = RegistryNode::new(
-            hostname.clone() + ":8082", // FIXME: hard code 8082 read from conf
-            hostname + ":8083",
+            hostname + ":8082", // FIXME: hard code 8082 read from conf
             config.cert_path().is_some(),
         );
-        let inner = Inner::new(halo_node, registry_node);
+        let inner = Inner::new(server_node, registry_node);
 
         Self {
             inner: Arc::new(inner),
@@ -40,10 +39,10 @@ impl State {
     }
 
     pub fn show_init_info(&self) {
-        let halo_node = self.halo_node();
+        let server_node = self.server_node();
         let registry_node = self.registry_node();
-        log::info!("_halo_state:||halo_node= {:?}", halo_node);
-        log::info!("_halo_state:||registry_node= {:?}", registry_node);
+        log::info!("_fplink_state:||server_node= {:?}", server_node);
+        log::info!("_fplink_state:||registry_node= {:?}", registry_node);
     }
 
     pub fn update_cluster_nodes(&mut self, nodes: HashSet<ServerNode>) {
@@ -66,8 +65,8 @@ impl State {
 }
 
 impl NodeOperation for State {
-    fn halo_node(&self) -> &ServerNode {
-        &self.inner.halo_node
+    fn server_node(&self) -> &ServerNode {
+        &self.inner.server_node
     }
 
     fn registry_node(&self) -> &RegistryNode {
@@ -75,13 +74,13 @@ impl NodeOperation for State {
     }
 
     fn is_myself(&self, node_id: &str) -> bool {
-        self.halo_node().node_id == node_id
+        self.server_node().node_id == node_id
     }
 
     fn find_node_by_host(&self, hostname: &str) -> Option<ServerNode> {
-        let halo_node = self.halo_node();
-        if halo_node.hostname == hostname {
-            return Some(halo_node.clone());
+        let server_node = self.server_node();
+        if server_node.hostname == hostname {
+            return Some(server_node.clone());
         }
 
         self.inner
@@ -93,9 +92,9 @@ impl NodeOperation for State {
     }
 
     fn find_node_by_id(&self, node_id: &str) -> Option<ServerNode> {
-        let halo_node = self.halo_node();
-        if halo_node.node_id == node_id {
-            return Some(halo_node.clone());
+        let server_node = self.server_node();
+        if server_node.node_id == node_id {
+            return Some(server_node.clone());
         }
 
         self.inner
@@ -109,16 +108,16 @@ impl NodeOperation for State {
 
 #[derive(Debug)]
 struct Inner {
-    halo_node: ServerNode,
+    server_node: ServerNode,
     registry_node: RegistryNode,
     cluster_nodes: RwLock<HashSet<ServerNode>>,
     service_nodes: RwLock<HashMap<String, HashSet<ServiceNode>>>,
 }
 
 impl Inner {
-    pub fn new(halo_node: ServerNode, registry_node: RegistryNode) -> Self {
+    pub fn new(server_node: ServerNode, registry_node: RegistryNode) -> Self {
         Self {
-            halo_node,
+            server_node,
             registry_node,
             cluster_nodes: Default::default(),
             service_nodes: Default::default(),

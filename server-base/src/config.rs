@@ -139,14 +139,15 @@ impl FPConfig {
         while let Ok(hproxy_str) = self.config.get_str(&format!("hproxy_{}", index)) {
             index += 1;
             let tokens: Vec<&str> = hproxy_str.trim().split('#').collect();
-            let origin_url: String;
             let hproxy: Hproxy;
-            if let Some(&o_url) = tokens.get(0) {
-                origin_url = o_url.trim().to_string();
+
+            let origin_url: String = if let Some(&o_url) = tokens.get(0) {
+                o_url.trim().to_string()
             } else {
                 log::warn!("invalid hproxy {}", hproxy_str);
                 continue;
-            }
+            };
+
             if origin_url.is_empty() {
                 log::warn!("invalid hproxy {}", hproxy_str);
                 continue;
@@ -187,14 +188,15 @@ impl FPConfig {
         while let Ok(service_str) = self.config.get_str(&format!("service_{}", index)) {
             index += 1;
             let tokens: Vec<&str> = service_str.trim().split('#').collect();
-            let namespace: String;
             let service: Service;
-            if let Some(&ns) = tokens.get(0) {
-                namespace = ns.trim().to_string();
+
+            let namespace: String = if let Some(&ns) = tokens.get(0) {
+                ns.trim().to_string()
             } else {
                 log::warn!("invalid service {}", service_str);
                 continue;
-            }
+            };
+
             if namespace.is_empty() {
                 log::warn!("invalid service {}", service_str);
                 continue;

@@ -1,6 +1,6 @@
 use crate::context::ConnContext;
 use crate::Protocol;
-use featureprobe_link_proto::packet::Message;
+use featureprobe_link_proto::proto::Message;
 use std::sync::Arc;
 
 #[derive(Clone)]

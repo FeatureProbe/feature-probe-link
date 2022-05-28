@@ -10,6 +10,7 @@ members = [
   "protobuf",
   "server-base",
   "server-state",
+  "server-core",
 ]
 
 [dependencies]

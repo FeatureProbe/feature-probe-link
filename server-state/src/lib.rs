@@ -22,12 +22,12 @@ lazy_static! {
     // these are initiated only once
     static ref CONFIG: RwLock<FPConfig> = RwLock::new(FPConfig::new());
 
-    // these are maintained by halo-cluster
+    // these are maintained by fplink-cluster
     static ref CLUSTER_CLIENT_STATE: Clusters = Clusters::new();
     static ref SERVICE_CLIENT_STATE: Services = Services::new();
     static ref CLUSTER_STATE: State = State::new(config());
 
-    // these are maintained by halo-core
+    // these are maintained by fplink-core
     static ref TCP_CONNS_COUNT: AtomicUsize = AtomicUsize::new(0);
     static ref WS_CONNS_COUNT: AtomicUsize = AtomicUsize::new(0);
     static ref QUIC_CONNS_COUNT: AtomicUsize = AtomicUsize::new(0);
