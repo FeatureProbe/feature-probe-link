@@ -1,4 +1,4 @@
-use super::memory::MemoryRepository;
+use super::repository::MemoryRepository;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use fxhash::FxBuildHasher;

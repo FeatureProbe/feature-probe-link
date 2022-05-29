@@ -1,5 +1,5 @@
 pub mod lifecycle;
-mod memory;
+mod repository;
 mod operator;
 
 pub use crate::operator::CoreOperator;
