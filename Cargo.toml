@@ -7,7 +7,7 @@ edition = "2021"
 
 [workspace]
 members = [
-  "protobuf",
+  "common-proto",
   "server-base",
   "server-state",
   "server-core",
