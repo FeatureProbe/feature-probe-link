@@ -2,7 +2,7 @@ use crate::{Error, HpResult, CALL_ID, METHOD};
 use http::HeaderMap;
 use reqwest::header::{HeaderName, HeaderValue};
 use reqwest::{Client as HttpClient, Method, RequestBuilder};
-use server_base::MessageReq;
+use server_base::proto::MessageReq;
 use std::collections::HashMap;
 use std::str::FromStr;
 

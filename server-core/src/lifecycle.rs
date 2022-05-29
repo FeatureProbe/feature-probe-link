@@ -1,5 +1,5 @@
 use crate::CoreOperator;
-use server_base::{tokio, Message};
+use server_base::{proto::Message, tokio};
 use server_base::{BuiltinService, HandyRwLock, IdGen, Protocol};
 use server_base::{Conn, LifeCycle};
 

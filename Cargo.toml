@@ -13,6 +13,7 @@ members = [
   "server-core",
   "server-listener",
   "server-hproxy",
+  "server-grpc",
 ]
 
 [dependencies]

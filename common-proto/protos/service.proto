@@ -75,7 +75,7 @@ message GetConnsReq {
   Trace trace = 10;
 }
 
-message Channels { repeated string channel = 1; }
+message Channels { repeated string channels = 1; }
 
 message ConnChannels {
   string cid = 1;
@@ -105,13 +105,13 @@ message GetChannelsResp {
   Channels Channels = 3;
 }
 
-service ChannelService {
+service LinkService {
   rpc Subscribe(SubReq) returns (SubResp) {}
-  rpc UnSubscribe(UnSubReq) returns (UnSubResp) {}
+  rpc Unsubscribe(UnSubReq) returns (UnSubResp) {}
   rpc BulkSubscribe(BulkSubReq) returns (BulkSubResp) {}
   rpc PushConn(PushConnReq) returns (PushConnResp) {}
   rpc Publish(PubReq) returns (PubResp) {}
-  rpc BulkPushlish(BulkPubReq) returns (PubResp) {}
+  rpc BulkPublish(BulkPubReq) returns (BulkPubResp) {}
   rpc GetConnChannels(GetConnsReq) returns (GetConnsResp) {}
   rpc GetChannels(GetChannelsReq) returns (GetChannelsResp) {}
 }
@@ -123,7 +123,7 @@ message MessageReq {
   Trace trace = 10;
 }
 
-message MessageResp { int64 num = 1; }
+message MessageResp { int64 success_num = 1; }
 
 service MessageService {
   rpc HandleMessage(MessageReq) returns (MessageResp) {}

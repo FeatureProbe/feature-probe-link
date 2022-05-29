@@ -17,6 +17,3 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 server-base = { path = "../server-base" }
-
-[dev-dependencies]
-simple_logger = "1.0"

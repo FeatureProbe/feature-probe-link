@@ -155,8 +155,8 @@ impl MemoryRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use server_base::{proto::Message, Protocol};
     use server_base::{Conn, ConnContext, LifeCycle, SendMessage};
-    use server_base::{Message, Protocol};
 
     #[test]
     fn test_gen_index_key() {

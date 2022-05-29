@@ -13,7 +13,7 @@ pub use crate::utils::*;
 pub use conn::Conn;
 pub use context::ConnContext;
 pub use featureprobe_link_proto as codec;
-pub use featureprobe_link_proto::proto::*;
+pub use featureprobe_link_proto::proto;
 pub use featureprobe_link_proto::tonic;
 pub use id_gen::IdGen;
 pub use minstant;
@@ -22,11 +22,9 @@ pub use tokio;
 pub use tonic::transport::Channel;
 
 use async_trait::async_trait;
+use featureprobe_link_proto::proto::*;
 use parking_lot::RwLock;
 use std::net::SocketAddr;
-
-// pub type GrpcConnClient = ConnectionManagerClient<Channel>;
-// pub type GrpcDispatchClient = MessageDispatchClient<Channel>;
 
 lazy_static! {
     pub static ref USER_PORT_LISTEN: RwLock<bool> = RwLock::new(false);

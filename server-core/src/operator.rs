@@ -2,11 +2,11 @@ use super::repository::MemoryRepository;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use fxhash::FxBuildHasher;
-use server_base::{tokio, Conn, CoreOperation, Dispatch};
-use server_base::{
+use server_base::proto::{
     BulkSubReq, Channels, ConnChannels, GetChannelsReq, GetConnsReq, Message, MessageReq, PubReq,
-    PubResp, PubStatus, PushConn, PushConnReq, SubReq, UnSubReq,
+    PubResp, PubStatus, PushConnReq, SubReq, UnSubReq,
 };
+use server_base::{tokio, Conn, CoreOperation, Dispatch, PushConn};
 use std::borrow::ToOwned;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -102,7 +102,7 @@ impl CoreOperator {
                 .iter()
                 .map(|(k, vs)| {
                     let cs = Channels {
-                        channel: vs.iter().cloned().collect::<Vec<String>>(),
+                        channels: vs.iter().cloned().collect::<Vec<String>>(),
                     };
                     (k.clone(), cs)
                 })
@@ -214,7 +214,7 @@ impl CoreOperator {
                     .iter()
                     .map(|(k, vs)| {
                         let ts = Channels {
-                            channel: vs.iter().cloned().collect::<Vec<String>>(),
+                            channels: vs.iter().cloned().collect::<Vec<String>>(),
                         };
                         (k.clone(), ts)
                     })
@@ -309,7 +309,7 @@ impl CoreOperation for CoreOperator {
         let channel_family = channel_family(&request.channel_family);
         let mut channels_ref = None;
         if let Some(channels) = &request.channels {
-            channels_ref = Some(channels.channel.as_slice())
+            channels_ref = Some(channels.channels.as_slice())
         }
         let map: HashMap<Conn, HashSet<String>> =
             self.inner
