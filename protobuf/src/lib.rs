@@ -6,7 +6,7 @@ use std::io::Cursor;
 
 pub mod proto;
 // pub mod proto {
-//     include!(concat!(env!("OUT_DIR"), "/featureprobe.link.service.rs"));
+// include!(concat!(env!("OUT_DIR"), "/featureprobe.link.service.rs"));
 // }
 
 pub fn encode(packet: proto::packet::Packet) -> Result<Bytes, EncodeError> {
@@ -25,16 +25,14 @@ pub fn decode(buf: &[u8]) -> Result<Option<proto::packet::Packet>, prost::Decode
 #[cfg(test)]
 mod tests {
     use super::*;
-    pub fn build_packet(namespace: String) -> proto::Packet {
-        let msg: proto::Message = proto::Message {
+    pub fn build_packet(namespace: String) -> proto::packet::Packet {
+        let message: proto::Message = proto::Message {
             namespace,
             path: "path".to_owned(),
             metadata: Default::default(),
             body: vec![1, 2, 3, 4],
         };
-        let mut packet = proto::Packet::default();
-        packet.packet = Some(proto::packet::Packet::Message(msg));
-        packet
+        proto::packet::Packet::Message(message)
     }
 
     #[test]
@@ -42,7 +40,7 @@ mod tests {
         let request = String::from("Hello, World!");
 
         let request = build_packet(request);
-        let request_vector = encode(&request);
+        let request_vector = encode(request).unwrap();
 
         let request_deserialized_result = match decode(&request_vector) {
             Ok(request_deserialized_result) => request_deserialized_result,

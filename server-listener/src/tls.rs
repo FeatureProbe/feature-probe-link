@@ -1,12 +1,11 @@
 use anyhow::{Context, Result};
-use server_base::LifeCycle;
 use rustls::{Certificate, PrivateKey, ServerConfig};
+use server_base::LifeCycle;
 use std::path::Path;
 use std::sync::Arc;
 use tokio_rustls::TlsAcceptor;
 
 pub const ALPN_TCP: &str = "tcp";
-pub const DEPRECATED_TCP: &str = "halo-tcp";
 pub const ALPN_WS: &str = "http/1.1";
 
 pub struct TlsAcceptorBuilder {
@@ -30,24 +29,17 @@ impl TlsAcceptorBuilder {
     }
 
     pub fn build(self) -> Option<TlsAcceptor> {
-        if let Some(private_key) = self.private_key {
-            if let Ok(mut server_config) = ServerConfig::builder()
-                .with_safe_defaults()
-                .with_no_client_auth()
-                .with_single_cert(self.cert_chain, private_key)
-            {
-                server_config.alpn_protocols = vec![
-                    Vec::from(ALPN_TCP),
-                    Vec::from(DEPRECATED_TCP),
-                    Vec::from(ALPN_WS),
-                ];
-                server_config.key_log = Arc::new(rustls::KeyLogFile::new());
-                Some(TlsAcceptor::from(Arc::new(server_config)))
-            } else {
-                log::warn!("tls acceptor build failed");
-                None
-            }
+        let private_key = self.private_key?;
+        if let Ok(mut server_config) = ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(self.cert_chain, private_key)
+        {
+            server_config.alpn_protocols = vec![Vec::from(ALPN_TCP), Vec::from(ALPN_WS)];
+            server_config.key_log = Arc::new(rustls::KeyLogFile::new());
+            Some(TlsAcceptor::from(Arc::new(server_config)))
         } else {
+            log::warn!("tls acceptor build failed");
             None
         }
     }

@@ -1,6 +1,6 @@
 use crate::peek::PeekStream;
 use crate::tcp::tcp_accept_stream;
-use crate::tls::{TlsAcceptorBuilder, ALPN_TCP, ALPN_WS, DEPRECATED_TCP};
+use crate::tls::{TlsAcceptorBuilder, ALPN_TCP, ALPN_WS};
 use crate::ws::ws_accept_stream;
 use server_base::tokio;
 use server_base::LifeCycle;
@@ -91,7 +91,7 @@ impl Listener {
             if let Ok(utf8_alpn) = std::str::from_utf8(alpn) {
                 log::info!("tls alpn: {}", utf8_alpn);
                 match utf8_alpn {
-                    ALPN_TCP | DEPRECATED_TCP => {
+                    ALPN_TCP => {
                         tcp_accept_stream(timeout, tls_stream, lifecycle, peer_addr).await;
                     }
                     ALPN_WS => {
@@ -137,7 +137,7 @@ impl Listener {
                 Err(e) => log::error!("incoming err: {:?}", e),
             }
         }
-        log::error!("halo_connector_server_stop: {:?}", self.address);
+        log::error!("server_stop_listen: {:?}", self.address);
     }
 }
 
@@ -182,7 +182,7 @@ async fn accept_tls_stream(
             Listener::accept_tls_stream(tls_stream, timeout, peer_addr, lifecycle).await;
         }
         Err(e) => {
-            log::warn!("halo_connector tls_stream accept failed: {:?}", e)
+            log::warn!("tls_stream accept failed: {:?}", e)
         }
     }
 }

@@ -1,0 +1,27 @@
+[package]
+name = "server-hproxy"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[dependencies]
+url = "2.2"
+log = "0.4"
+rand = "^0.8"
+regex = "1"
+protobuf = "^2.14"
+futures = "0.3"
+async-trait = "0.1"
+reqwest = { version = "0.11", default-features = false, features = [
+	"rustls-tls",
+] }
+parking_lot = "0.11"
+http = "0.2"
+cached = "0.23"
+snafu = "0.7"
+
+server-base = { path = "../server-base" }
+server-state = { path = "../server-state" }
+
+[dev-dependencies]
+config = { version = "0.11", default_features = false, features = ["json"] }
