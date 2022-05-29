@@ -1,8 +1,7 @@
 use crate::accepter::Accepter;
-use anyhow::Error;
 use bytes::{Bytes, BytesMut};
 use futures::stream::StreamExt;
-use server_base::codec;
+use server_base::codec::{self, DecodeError, EncodeError};
 use server_base::packet::Packet;
 use server_base::{tokio, Message};
 use server_base::{ConnContext, LifeCycle, Protocol, RecvMessage, SendMessage};
@@ -22,12 +21,12 @@ impl WsCodec {
 }
 
 impl WsCodec {
-    pub fn encode(&self, item: Message) -> Result<Bytes, Error> {
+    pub fn encode(&self, item: Message) -> Result<Bytes, EncodeError> {
         let packet = Packet::Message(item);
-        codec::encode(packet).map_err(Error::from)
+        codec::encode(packet)
     }
 
-    pub fn decode(&self, src: &mut BytesMut) -> Result<Option<Message>, Error> {
+    pub fn decode(&self, src: &mut BytesMut) -> Result<Option<Message>, DecodeError> {
         let packet = codec::decode(src)?;
         match packet {
             Some(Packet::Message(m)) => Ok(Some(m)),

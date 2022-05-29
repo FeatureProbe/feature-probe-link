@@ -1,4 +1,3 @@
-use anyhow::Result;
 use server_base::tokio;
 use std::io;
 use std::pin::Pin;
@@ -18,12 +17,15 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PeekStream<S> {
         }
     }
 
-    pub async fn peek(&mut self, length: u8) -> Result<Vec<u8>> {
+    pub async fn peek(&mut self, length: u8) -> Option<Vec<u8>> {
         let mut buf = [0, length];
-        let n = self.stream.read(&mut buf).await?;
+        let n = match self.stream.read(&mut buf).await {
+            Ok(n) => n,
+            Err(_) => return None,
+        };
         let buf = buf[0..n].to_vec();
         self.peek_buf = Some(buf.clone());
-        Ok(buf)
+        Some(buf)
     }
 }
 

@@ -148,25 +148,21 @@ async fn detect_accept<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
     peer_addr: Option<SocketAddr>,
 ) {
     let mut peek_stream = PeekStream::new(stream);
-    match peek_stream.peek(1).await {
-        Ok(buf) => {
-            let s = std::str::from_utf8(&buf);
-            match s {
-                Ok(s) => {
-                    if s.starts_with('G') {
-                        log::info!("detect protocol ws");
-                        ws_accept_stream(timeout, peek_stream, lifecycle, peer_addr).await;
-                        return;
-                    } else if s.starts_with('\u{1}') {
-                        log::info!("detect protocol tcp ");
-                    } else {
-                        log::warn!("unknown protocol {}", s)
-                    }
+    if let Some(buf) = peek_stream.peek(1).await {
+        match std::str::from_utf8(&buf) {
+            Ok(s) => {
+                if s.starts_with('G') {
+                    log::info!("detect protocol ws");
+                    ws_accept_stream(timeout, peek_stream, lifecycle, peer_addr).await;
+                    return;
+                } else if s.starts_with('\u{1}') {
+                    log::info!("detect protocol tcp ");
+                } else {
+                    log::warn!("unknown protocol {}", s)
                 }
-                Err(e) => log::warn!("protocol try tcp  {:?}", e),
             }
+            Err(e) => log::warn!("protocol try tcp  {:?}", e),
         }
-        Err(e) => log::warn!("peek err try tcp {:?}", e),
     }
     tcp_accept_stream(timeout, peek_stream, lifecycle, peer_addr).await;
 }

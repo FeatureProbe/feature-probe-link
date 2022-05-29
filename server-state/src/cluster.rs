@@ -1,5 +1,4 @@
 use crate::{Connect, GrpcClient};
-use anyhow::Result;
 use parking_lot::RwLock;
 use server_base::HandyRwLock;
 use std::collections::HashMap;
@@ -47,7 +46,7 @@ impl<T: Connect> Cluster<T> {
         }
     }
 
-    pub fn add_client(&mut self, node_id: &str, host: &str, port: u16) -> Result<()> {
+    pub fn add_client(&mut self, node_id: &str, host: &str, port: u16) {
         let timeout_ms = crate::config().cluster_grpc_timeout_ms();
         let addr = format!("{}:{}", host, port);
         if let Some(old_node_id) = self.add_node_id(&addr, node_id) {
@@ -55,7 +54,6 @@ impl<T: Connect> Cluster<T> {
         }
         let c = T::connect(addr, timeout_ms);
         self.clients.wl().insert(node_id.to_string(), c);
-        Ok(())
     }
 
     pub fn remove_client(&mut self, node_id: &str, host: &str, port: u16) {

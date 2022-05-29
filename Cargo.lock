@@ -1413,7 +1413,6 @@ dependencies = [
 name = "server-listener"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "bytes",
  "cached",
  "futures",
@@ -1425,6 +1424,7 @@ dependencies = [
  "rustls-pemfile 0.2.1",
  "server-base",
  "server-state",
+ "snafu",
  "stream-cancel",
  "tokio-rustls",
  "tokio-stream",
@@ -1437,7 +1437,6 @@ dependencies = [
 name = "server-state"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "futures",
  "lazy_static",
  "log",

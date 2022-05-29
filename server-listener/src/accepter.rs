@@ -1,8 +1,8 @@
 use futures::sink::SinkExt;
 use futures::{Sink, Stream, StreamExt};
+use parking_lot::Mutex;
 use server_base::tokio;
 use server_base::{ConnContext, HandyMutex, RecvMessage};
-use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use stream_cancel::{Trigger, Valve, Valved};

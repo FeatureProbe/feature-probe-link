@@ -68,13 +68,11 @@ impl<G: PushConn + Clone + Send + Sync> BuiltinService for HttpProxy<G> {
         let cid = conn_id.to_string();
         add_forwarded(&mut message.metadata, peer_addr);
         add_real_ip(&mut message.metadata, peer_addr);
-        self.handle_request(
-            MessageReq {
-                cid,
-                message: Some(message),
-                ..Default::default()
-            },
-        )
+        self.handle_request(MessageReq {
+            cid,
+            message: Some(message),
+            ..Default::default()
+        })
         .await;
     }
 }

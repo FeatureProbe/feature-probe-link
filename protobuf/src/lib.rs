@@ -1,7 +1,8 @@
-use bytes::{Bytes, BytesMut};
+pub use prost::{DecodeError, EncodeError};
 pub use tonic;
 
-use prost::{EncodeError, Message};
+use bytes::{Bytes, BytesMut};
+use prost::Message;
 use std::io::Cursor;
 
 pub mod proto;
@@ -18,7 +19,7 @@ pub fn encode(packet: proto::packet::Packet) -> Result<Bytes, EncodeError> {
     Ok(buf.freeze())
 }
 
-pub fn decode(buf: &[u8]) -> Result<Option<proto::packet::Packet>, prost::DecodeError> {
+pub fn decode(buf: &[u8]) -> Result<Option<proto::packet::Packet>, DecodeError> {
     Ok(proto::Packet::decode(&mut Cursor::new(buf))?.packet)
 }
 

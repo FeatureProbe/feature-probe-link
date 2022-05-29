@@ -1,6 +1,6 @@
-use anyhow::{Context, Result};
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use server_base::LifeCycle;
+use snafu::{whatever, ResultExt, Whatever};
 use std::path::Path;
 use std::sync::Arc;
 use tokio_rustls::TlsAcceptor;
@@ -21,7 +21,7 @@ impl TlsAcceptorBuilder {
         }
     }
 
-    pub fn with_cert_pem_file(&mut self, path: &Path) -> Result<()> {
+    pub fn with_cert_pem_file(&mut self, path: &Path) -> Result<(), Whatever> {
         let (certs, key) = crate::tls::cert_key(path)?;
         self.cert_chain = certs;
         self.private_key = Some(key);
@@ -45,33 +45,33 @@ impl TlsAcceptorBuilder {
     }
 }
 
-pub fn cert_key(path: &std::path::Path) -> Result<(Vec<Certificate>, PrivateKey)> {
-    let key = std::fs::read(path).context("failed to read private key")?;
+pub fn cert_key(path: &std::path::Path) -> Result<(Vec<Certificate>, PrivateKey), Whatever> {
+    let key = std::fs::read(path)
+        .with_whatever_context(|_| format!("{:?} not found for cert_key", path))?;
     let key = if path.extension().map_or(false, |x| x == "der") {
         rustls::PrivateKey(key)
     } else {
         let pkcs8 = rustls_pemfile::pkcs8_private_keys(&mut &*key)
-            .context("malformed PKCS #8 private key")?;
+            .with_whatever_context(|_| "malformed PKCS #8 private key")?;
         match pkcs8.into_iter().next() {
             Some(x) => rustls::PrivateKey(x),
             None => {
                 let rsa = rustls_pemfile::rsa_private_keys(&mut &*key)
-                    .context("malformed PKCS #1 private key")?;
+                    .with_whatever_context(|_| "malformed PKCS #1 private key")?;
                 match rsa.into_iter().next() {
                     Some(x) => rustls::PrivateKey(x),
-                    None => {
-                        anyhow::bail!("no private keys found");
-                    }
+                    None => whatever!("No Private Key Found"),
                 }
             }
         }
     };
-    let cert_chain = std::fs::read(path).context("failed to read certificate chain")?;
+    let cert_chain =
+        std::fs::read(path).with_whatever_context(|_| "failed to read certificate chain")?;
     let cert_chain = if path.extension().map_or(false, |x| x == "der") {
         vec![rustls::Certificate(cert_chain)]
     } else {
         rustls_pemfile::certs(&mut &*cert_chain)
-            .context("invalid PEM-encoded certificate")?
+            .with_whatever_context(|_| "invalid PEM-encoded certificate")?
             .into_iter()
             .map(rustls::Certificate)
             .collect()
