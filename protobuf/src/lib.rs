@@ -5,10 +5,9 @@ use bytes::{Bytes, BytesMut};
 use prost::Message;
 use std::io::Cursor;
 
-pub mod proto;
-// pub mod proto {
-// include!(concat!(env!("OUT_DIR"), "/featureprobe.link.service.rs"));
-// }
+pub mod proto {
+    include!(concat!(env!("OUT_DIR"), "/featureprobe.link.rs"));
+}
 
 pub fn encode(packet: proto::packet::Packet) -> Result<Bytes, EncodeError> {
     let p = proto::Packet {
