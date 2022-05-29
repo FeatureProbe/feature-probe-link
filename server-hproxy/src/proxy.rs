@@ -272,7 +272,6 @@ fn add_real_ip(metadata: &mut HashMap<String, String>, peer_addr: Option<SocketA
 mod tests {
     use super::*;
     use super::{add_forwarded, FORWARDED_FOR};
-    use crate::HPROXY_NAMESPACE;
     use server_base::tokio;
     use server_base::FPConfig;
     use std::collections::HashMap;
@@ -355,19 +354,11 @@ mod tests {
         );
         let grpc = MockGrpcClient::default();
         let c = HttpProxy::with_hproxy_map(grpc, hproxy_map);
-        c.process(HPROXY_NAMESPACE.to_string(), builder).await;
+        c.process(builder).await;
     }
 
     struct MockResponse {
         pub headers: HeaderMap,
-    }
-
-    impl MockResponse {
-        pub fn new() -> Self {
-            MockResponse {
-                headers: HeaderMap::new(),
-            }
-        }
     }
 
     impl ResponseWithHeader for MockResponse {
