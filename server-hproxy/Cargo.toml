@@ -18,7 +18,7 @@ reqwest = { version = "0.11", default-features = false, features = [
 parking_lot = "0.11"
 http = "0.2"
 cached = "0.23"
-snafu = "0.7"
+thiserror = "1.0"
 
 server-base = { path = "../server-base" }
 server-state = { path = "../server-state" }

@@ -4,7 +4,7 @@ mod proxy;
 use crate::http::HpRequestBuilder;
 use proxy::HttpProxy;
 use server_base::PushConn;
-use snafu::prelude::*;
+use thiserror::Error;
 
 type HpResult<T> = std::result::Result<T, Error>;
 
@@ -14,18 +14,18 @@ const HTTP_STATUS_CODE: &str = "__status_code";
 const CALL_ID: &str = "__call_id";
 const METHOD: &str = "__method";
 
-#[derive(Debug, Snafu)]
+#[derive(Debug, Error)]
 pub enum Error {
-    #[snafu(display("No CallId {url}"))]
+    #[error("No CallId {url}")]
     NoCallId { url: String },
 
-    #[snafu(display("No Method {url}"))]
+    #[error("No Method {url}")]
     NoMethod { url: String },
 
-    #[snafu(display("Invalid Method {method} of {url}"))]
+    #[error("Invalid Method {method} of {url}")]
     InvalidMethod { method: String, url: String },
 
-    #[snafu(display("No Message in MessageReq of conn {cid}"))]
+    #[error("No Message in MessageReq of conn {cid}")]
     NoMessage { cid: String },
 }
 
