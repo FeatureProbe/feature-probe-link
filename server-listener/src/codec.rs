@@ -1,8 +1,7 @@
+use anyhow::Error;
 use bytes::{BufMut, BytesMut};
 use server_base::{codec, proto::packet::Packet};
 use tokio_util::codec::{Decoder as TokioDecoder, Encoder as TokioEncoder};
-
-use crate::Error;
 
 pub struct Codec {}
 
