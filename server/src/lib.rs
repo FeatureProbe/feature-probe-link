@@ -37,14 +37,14 @@ pub fn main() {
 fn init_logger(config: &FPConfig) -> (WorkerGuard, WorkerGuard, WorkerGuard) {
     let dir = config.log_directory();
     let (info_appender, info_guard) =
-        tracing_appender::non_blocking(rolling::never(&dir, "info.log"));
+        tracing_appender::non_blocking(rolling::daily(&dir, "info.log"));
     let (warn_appender, warn_guard) =
-        tracing_appender::non_blocking(rolling::never(&dir, "warn.log"));
+        tracing_appender::non_blocking(rolling::daily(&dir, "warn.log"));
     let (err_appender, err_guard) =
-        tracing_appender::non_blocking(rolling::never(&dir, "error.log"));
+        tracing_appender::non_blocking(rolling::daily(&dir, "error.log"));
     let stdout = layer()
         .with_line_number(true)
-        .with_filter(LevelFilter::INFO);
+        .with_filter(LevelFilter::DEBUG);
     let info = layer()
         .with_writer(info_appender)
         .with_line_number(true)
@@ -59,7 +59,10 @@ fn init_logger(config: &FPConfig) -> (WorkerGuard, WorkerGuard, WorkerGuard) {
         .with_filter(LevelFilter::ERROR);
 
     tracing_subscriber::registry()
-        .with(stdout.and_then(info).and_then(warn).and_then(err))
+        .with(stdout)
+        .with(info)
+        .with(warn)
+        .with(err)
         .init();
 
     (info_guard, warn_guard, err_guard)
