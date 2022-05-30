@@ -14,29 +14,15 @@ members = [
   "server-listener",
   "server-hproxy",
   "server-grpc",
+  "server",
 ]
 
 [features]
 default = ["server"]
-server = [
-  "server-base",
-  "server-state",
-  "server-core",
-  "server-listener",
-  "server-hproxy",
-  "server-grpc",
-]
 client = []
 
-[build-dependencies]
-vergen = "3"
+
 
 [dependencies]
-log = "0.4"
 
-server-base = { optional = true, path = "./server-base" }
-server-state = { optional = true, path = "./server-state" }
-server-core = { optional = true, path = "./server-core" }
-server-listener = { optional = true, path = "./server-listener" }
-server-hproxy = { optional = true, path = "./server-hproxy" }
-server-grpc = { optional = true, path = "./server-grpc" }
+server = { optional = true, path = "./server" }

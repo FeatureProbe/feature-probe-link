@@ -1,5 +1,5 @@
 [package]
-name = "featureprobe-link-proto"
+name = "common-proto"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,4 +11,4 @@ prost = "0.10"
 bytes = "1.0"
 
 [build-dependencies]
-tonic-build = "0.7" 
+tonic-build = "0.7"

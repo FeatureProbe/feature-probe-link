@@ -1,6 +1,8 @@
-#[cfg(feature = "server")]
-mod server;
+// #[cfg(feature = "server")]
+// mod server;
 
 fn main() {
-    println!("main");
+    if cfg!(feature = "server") {
+        server::main()
+    }
 }

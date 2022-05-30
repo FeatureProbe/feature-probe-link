@@ -10,11 +10,11 @@ mod utils;
 
 pub use crate::config::*;
 pub use crate::utils::*;
+pub use common_proto as codec;
+pub use common_proto::proto;
+pub use common_proto::tonic;
 pub use conn::Conn;
 pub use context::ConnContext;
-pub use featureprobe_link_proto as codec;
-pub use featureprobe_link_proto::proto;
-pub use featureprobe_link_proto::tonic;
 pub use id_gen::IdGen;
 pub use minstant;
 pub use node::{RegistryNode, ServerNode, ServiceNode};
@@ -22,7 +22,7 @@ pub use tokio;
 pub use tonic::transport::Channel;
 
 use async_trait::async_trait;
-use featureprobe_link_proto::proto::*;
+use common_proto::proto::*;
 use parking_lot::RwLock;
 use std::net::SocketAddr;
 

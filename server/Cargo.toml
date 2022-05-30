@@ -1,0 +1,25 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+vergen = "3"
+
+[dependencies]
+log = "0.4"
+tracing-appender = "0.2"
+tracing-core = "0.1"
+tracing-log = "0.1"
+tracing-subscriber = { version = "0.3", features = ["local-time", "env-filter"] }
+
+server-base = { path = "../server-base" }
+server-state = { path = "../server-state" }
+server-core = { path = "../server-core" }
+server-listener = { path = "../server-listener" }
+server-hproxy = { path = "../server-hproxy" }
+server-grpc = { path = "../server-grpc" }
+
