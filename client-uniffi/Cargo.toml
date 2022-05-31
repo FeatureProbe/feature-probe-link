@@ -1,0 +1,17 @@
+[package]
+name = "client-uniffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "featureprobe_link_ffi"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+uniffi_macros = "0.18"
+uniffi = { version = "0.18", features = [ "builtin-bindgen" ] }
+
+client_core = { path = "../client-core" }
+
+[build-dependencies]
+uniffi_build = { version = "0.18", features = [ "builtin-bindgen" ] }

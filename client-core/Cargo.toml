@@ -1,5 +1,5 @@
 [package]
-name = "client-core"
+name = "client_core"
 version = "0.1.0"
 edition = "2021"
 resolver = "2"
@@ -35,12 +35,8 @@ reqwest = { version = "0.11", default-features = false, features = [
 	"gzip",
 ] }
 
+client-proto = { path = "../client-proto" }
+
 [dev-dependencies]
 directories-next = "1.0.1"
 simple_logger = "1.0"
-
-[profile.release]
-lto = true
-strip = true  # Automatically strip symbols from the binary.
-opt-level = "s"  # Optimize for size.
-codegen-units = 1

@@ -7,7 +7,9 @@ edition = "2021"
 
 [workspace]
 members = [
+  "client-core",
   "client-proto",
+  "client-uniffi",
   "server-proto",
   "server-base",
   "server-state",
@@ -22,8 +24,13 @@ members = [
 default = ["server"]
 client = []
 
-
-
 [dependencies]
 
 server = { optional = true, path = "./server" }
+
+# this profile is for client, should replace in Makefile when build for server
+[profile.release]
+lto = true
+strip = true  # Automatically strip symbols from the binary.
+opt-level = "s"  # Optimize for size.
+codegen-units = 1

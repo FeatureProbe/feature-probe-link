@@ -1,0 +1,36 @@
+namespace featureprobe { };
+
+interface FPLink {
+    constructor();
+    void open();
+    void send(FPMessage message);
+    void close();
+    u8 state();
+    void go_background();
+    void go_foreground();
+    void network_change(FPNetworkType old, FPNetworkType new);
+    void set_attrs(record<DOMString, string> attrs);
+};
+
+callback interface FPlatformCallback {
+    void auth();
+    void recv(FPMessage message);
+    void state_change(u8 old, u8 new);
+};
+
+dictionary FPMessage {
+    string namespace;
+    string path;
+    record<DOMString, string> metadata;
+    sequence<u8> body;
+};
+
+enum FPNetworkType {
+    "TypeUnknown",
+    "TypeNoNet",
+    "TypeWiFi",
+    "Type2G",
+    "Type3G",
+    "Type4G",
+    "Type5G",
+};
