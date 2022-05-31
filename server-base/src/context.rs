@@ -1,7 +1,7 @@
 use crate::conn::Conn;
 use crate::Protocol;
 use crate::{LifeCycle, SendMessage};
-use common_proto::proto::Message;
+use server_proto::proto::Message;
 use std::net::SocketAddr;
 use std::sync::Arc;
 

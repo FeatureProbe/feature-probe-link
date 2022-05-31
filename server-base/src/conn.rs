@@ -1,6 +1,6 @@
 use crate::context::ConnContext;
 use crate::Protocol;
-use common_proto::proto::Message;
+use server_proto::proto::Message;
 use std::sync::Arc;
 
 #[derive(Clone)]

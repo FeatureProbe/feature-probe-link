@@ -7,7 +7,8 @@ edition = "2021"
 
 [workspace]
 members = [
-  "common-proto",
+  "client-proto",
+  "server-proto",
   "server-base",
   "server-state",
   "server-core",

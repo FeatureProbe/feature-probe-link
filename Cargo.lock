@@ -220,22 +220,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "client-proto"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "prost",
+ "prost-build",
+]
+
+[[package]]
 name = "cmake"
 version = "0.1.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8ad8cef104ac57b68b89df3208164d228503abbdce70f6880ffa3d970e7443a"
 dependencies = [
  "cc",
-]
-
-[[package]]
-name = "common-proto"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "prost",
- "tonic",
- "tonic-build",
 ]
 
 [[package]]
@@ -1435,7 +1434,6 @@ name = "server-base"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "common-proto",
  "config",
  "lazy_static",
  "log",
@@ -1445,6 +1443,7 @@ dependencies = [
  "rand",
  "serde 1.0.137",
  "serde_json",
+ "server-proto",
  "stream-cancel",
  "tokio",
  "tonic",
@@ -1523,6 +1522,16 @@ dependencies = [
  "tokio-tungstenite",
  "tokio-util 0.6.10",
  "tungstenite",
+]
+
+[[package]]
+name = "server-proto"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "prost",
+ "tonic",
+ "tonic-build",
 ]
 
 [[package]]
