@@ -20,7 +20,7 @@ pub struct HttpProxy<G: PushConn + Clone> {
 }
 
 enum ResponseResult {
-    Response(reqwest::Response),
+    Response(Box<reqwest::Response>),
     HttpErr(reqwest::Error),
     ProxyErr(String),
 }
@@ -28,7 +28,7 @@ enum ResponseResult {
 impl From<Result<reqwest::Response, reqwest::Error>> for ResponseResult {
     fn from(result: Result<reqwest::Response, reqwest::Error>) -> ResponseResult {
         match result {
-            Ok(response) => ResponseResult::Response(response),
+            Ok(response) => ResponseResult::Response(Box::new(response)),
             Err(e) => ResponseResult::HttpErr(e),
         }
     }

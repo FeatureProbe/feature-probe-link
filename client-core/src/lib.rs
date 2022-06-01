@@ -32,6 +32,7 @@ pub enum NetworkType {
 pub struct LinkClient {}
 
 impl LinkClient {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let _enter = TOKIO_RUNTIME.enter();
 

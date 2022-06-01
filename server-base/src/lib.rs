@@ -10,20 +10,20 @@ mod utils;
 
 pub use crate::config::*;
 pub use crate::utils::*;
-pub use server_proto as codec;
-pub use server_proto::proto;
-pub use server_proto::tonic;
 pub use conn::Conn;
 pub use context::ConnContext;
 pub use id_gen::IdGen;
 pub use minstant;
 pub use node::{RegistryNode, ServerNode, ServiceNode};
+pub use server_proto as codec;
+pub use server_proto::proto;
+pub use server_proto::tonic;
 pub use tokio;
 pub use tonic::transport::Channel;
 
 use async_trait::async_trait;
-use server_proto::proto::*;
 use parking_lot::RwLock;
+use server_proto::proto::*;
 use std::net::SocketAddr;
 
 lazy_static! {

@@ -1,4 +1,3 @@
-// FIXME: preformance issue, too many clones
 use parking_lot::RwLock;
 use server_base::{FPConfig, HandyRwLock, RegistryNode, ServerNode, ServiceNode};
 use std::collections::{HashMap, HashSet};
