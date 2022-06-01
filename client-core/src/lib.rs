@@ -57,3 +57,37 @@ impl LinkClient {
 
     pub fn set_attrs(&self, _attrs: HashMap<String, String>) {}
 }
+
+pub trait Connection: Send + Sync {
+    #[allow(clippy::new_without_default)]
+    fn new() -> Self;
+
+    fn open(&self);
+
+    fn send(&self, _message: Message);
+
+    fn close(&self);
+
+    fn state(&self) -> u8;
+}
+
+pub struct TcpConnection {}
+
+impl Connection for TcpConnection {
+    #[allow(clippy::new_without_default)]
+    fn new() -> Self {
+        let _enter = TOKIO_RUNTIME.enter();
+
+        Self {}
+    }
+
+    fn open(&self) {}
+
+    fn send(&self, _message: Message) {}
+
+    fn close(&self) {}
+
+    fn state(&self) -> u8 {
+        0
+    }
+}

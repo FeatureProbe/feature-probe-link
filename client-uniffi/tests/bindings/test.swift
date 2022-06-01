@@ -1,4 +1,4 @@
-import featureprobe
+import FeatureProbeLink
 
-let link = FPLink()
+let link = FpLink()
 print("link is \(link)")

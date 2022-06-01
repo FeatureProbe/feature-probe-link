@@ -117,6 +117,7 @@ impl CoreOperator {
                 metadata: message.metadata,
                 path: message.path,
                 body: message.body.to_vec(),
+                expire_at: None,
             }),
             channels,
             trace: None,

@@ -30,6 +30,7 @@ mod tests {
             path: "path".to_owned(),
             metadata: Default::default(),
             body: vec![1, 2, 3, 4],
+            expire_at: None
         };
         proto::packet::Packet::Message(message)
     }

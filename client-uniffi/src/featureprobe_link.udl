@@ -1,4 +1,4 @@
-namespace featureprobe { };
+namespace FeatureProbeLink { };
 
 interface FPLink {
     constructor();
@@ -23,6 +23,7 @@ dictionary FPMessage {
     string path;
     record<DOMString, string> metadata;
     sequence<u8> body;
+    u64? expire_at;
 };
 
 enum FPNetworkType {

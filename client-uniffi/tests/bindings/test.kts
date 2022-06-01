@@ -1,5 +1,5 @@
-import com.featureprobe.mobile.*;
+import com.featureprobe.link.*;
 
-val link = FPLink()
+val link = FpLink()
 
 println("toggle value is $link")
