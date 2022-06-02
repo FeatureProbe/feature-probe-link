@@ -1,3 +1,6 @@
+mod quic_conn;
+mod tcp_conn;
+
 use std::collections::HashMap;
 
 pub use client_proto::proto::Message;
@@ -69,25 +72,4 @@ pub trait Connection: Send + Sync {
     fn close(&self);
 
     fn state(&self) -> u8;
-}
-
-pub struct TcpConnection {}
-
-impl Connection for TcpConnection {
-    #[allow(clippy::new_without_default)]
-    fn new() -> Self {
-        let _enter = TOKIO_RUNTIME.enter();
-
-        Self {}
-    }
-
-    fn open(&self) {}
-
-    fn send(&self, _message: Message) {}
-
-    fn close(&self) {}
-
-    fn state(&self) -> u8 {
-        0
-    }
 }

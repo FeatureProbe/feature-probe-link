@@ -1,10 +1,12 @@
-# FeatureProbe Link
+# FeatureProbe Link (Alpha Version)
+
+This is alpha version and should not be considered ready for production use while this message is visible.
 
 FeatureProbe Link is a **generel purpose** full duplex network component to make the information flow between `Client` and `Business Service` easier.
 
 For mobile device, FeatureProbe Link support TCP and QUIC protocols. For pure JavaScript environtment (like Browser or Electron), Websocket protocol is supported.
 
-Apps can use `Link Client` SDK to revieve bytes from `Business Service` (usually developer's micro-service) or send bytes to `Business Service` through `Link Server`. The most common senario is Instant-Messaging Apps.
+Apps can use `Link Client` SDK to recieve bytes from `Business Service` (usually developer's micro-service) or send bytes to `Business Service` through `Link Server`. The most common senario is Instant-Messaging Apps.
 
 FeatureProbe use this component to make toggle update blazing fast.
 
