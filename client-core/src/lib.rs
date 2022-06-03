@@ -127,7 +127,7 @@ pub fn now_ts() -> u128 {
     let since_the_epoch = start
         .duration_since(std::time::UNIX_EPOCH)
         .expect("time went backwards");
-    since_the_epoch.as_millis() as u128
+    since_the_epoch.as_millis()
 }
 
 // for test

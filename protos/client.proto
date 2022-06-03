@@ -10,9 +10,9 @@ message Packet {
   }
 }
 
-message Ping { uint64 timestamp = 1; }
+message Ping { bytes timestamp = 1; }
 
-message Pong { uint64 timestamp = 1; }
+message Pong { bytes timestamp = 1; }
 
 message Message {
   string namespace = 1;
