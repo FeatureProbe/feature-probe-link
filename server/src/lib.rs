@@ -23,7 +23,7 @@ pub fn main() {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .worker_threads(config.worker_num())
-        .thread_name("halo-tokio-runtime")
+        .thread_name("feature-probe")
         .build()
         .expect("can not start tokio runtime")
         .block_on(async {

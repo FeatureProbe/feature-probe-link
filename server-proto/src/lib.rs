@@ -3,7 +3,6 @@ pub use tonic;
 
 use bytes::{Bytes, BytesMut};
 use prost::Message;
-use std::io::Cursor;
 
 pub mod proto {
     include!(concat!(env!("OUT_DIR"), "/featureprobe.link.rs"));
@@ -14,12 +13,12 @@ pub fn encode(packet: proto::packet::Packet) -> Result<Bytes, EncodeError> {
         packet: Some(packet),
     };
     let mut buf = BytesMut::with_capacity(p.encoded_len());
-    p.encode(&mut buf)?;
+    p.encode_length_delimited(&mut buf)?;
     Ok(buf.freeze())
 }
 
-pub fn decode(buf: &[u8]) -> Result<Option<proto::packet::Packet>, DecodeError> {
-    Ok(proto::Packet::decode(&mut Cursor::new(buf))?.packet)
+pub fn decode(buf: &mut BytesMut) -> Result<Option<proto::packet::Packet>, DecodeError> {
+    Ok(proto::Packet::decode_length_delimited(buf)?.packet)
 }
 
 #[cfg(test)]
@@ -39,11 +38,12 @@ mod tests {
     #[test]
     fn test() -> Result<(), prost::DecodeError> {
         let request = String::from("Hello, World!");
-
         let request = build_packet(request);
         let request_vector = encode(request).unwrap();
+        let request_vector = [request_vector.clone(), request_vector].concat();
+        let mut bm = BytesMut::from(request_vector.as_slice());
 
-        let request_deserialized_result = match decode(&request_vector) {
+        let request_deserialized_result = match decode(&mut bm) {
             Ok(request_deserialized_result) => request_deserialized_result,
             Err(e) => return Err(e),
         };

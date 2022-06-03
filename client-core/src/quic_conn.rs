@@ -1,25 +1,26 @@
-use client_proto::proto::Message;
-
 use crate::Connection;
-use crate::TOKIO_RUNTIME;
+use async_trait::async_trait;
+use client_proto::proto::Message;
 
 pub struct QuicConnection {}
 
+#[async_trait]
 impl Connection for QuicConnection {
-    #[allow(clippy::new_without_default)]
-    fn new() -> Self {
-        let _enter = TOKIO_RUNTIME.enter();
-
-        Self {}
+    async fn open(&self) -> bool {
+        return false;
     }
 
-    fn open(&self) {}
+    async fn send(&self, _message: Message) -> bool {
+        false
+    }
 
-    fn send(&self, _message: Message) {}
+    async fn close(&self) {}
 
-    fn close(&self) {}
-
-    fn state(&self) -> u8 {
+    async fn state(&self) -> u8 {
         0
+    }
+
+    async fn is_same_conn(&self, _unique_id: &str) -> bool {
+        false
     }
 }

@@ -42,12 +42,8 @@ impl Builder {
                 .accept_builder
                 .with_cert_pem_file(std::path::Path::new(&file))
             {
-                Ok(_) => {
-                    log::info!("load cert: {:?} success", file);
-                }
-                Err(e) => {
-                    log::warn!("add_cert_pem_file failed: {:?}", e);
-                }
+                Ok(_) => log::info!("load cert: {:?} success", file),
+                Err(e) => log::warn!("add_cert_pem_file failed: {:?}", e),
             }
         }
         self
@@ -149,19 +145,12 @@ async fn detect_accept<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
 ) {
     let mut peek_stream = PeekStream::new(stream);
     if let Some(buf) = peek_stream.peek(1).await {
-        match std::str::from_utf8(&buf) {
-            Ok(s) => {
-                if s.starts_with('G') {
-                    log::info!("detect protocol ws");
-                    ws_accept_stream(timeout, peek_stream, lifecycle, peer_addr).await;
-                    return;
-                } else if s.starts_with('\u{1}') {
-                    log::info!("detect protocol tcp ");
-                } else {
-                    log::warn!("unknown protocol {}", s)
-                }
+        if let Ok(s) = std::str::from_utf8(&buf) {
+            if s.starts_with('G') {
+                log::info!("detect protocol ws");
+                ws_accept_stream(timeout, peek_stream, lifecycle, peer_addr).await;
+                return;
             }
-            Err(e) => log::warn!("protocol try tcp  {:?}", e),
         }
     }
     tcp_accept_stream(timeout, peek_stream, lifecycle, peer_addr).await;

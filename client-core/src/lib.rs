@@ -1,10 +1,15 @@
+mod codec;
+mod id_gen;
+mod manager;
 mod quic_conn;
 mod tcp_conn;
 
-use std::collections::HashMap;
-
 pub use client_proto::proto::Message;
+
+use async_trait::async_trait;
 use lazy_static::lazy_static;
+use rustls::{Certificate, ServerName};
+use std::{collections::HashMap, sync::Arc, sync::Weak, time::SystemTime};
 use tokio::runtime::{Builder, Runtime};
 
 lazy_static! {
@@ -61,15 +66,89 @@ impl LinkClient {
     pub fn set_attrs(&self, _attrs: HashMap<String, String>) {}
 }
 
+#[async_trait]
 pub trait Connection: Send + Sync {
-    #[allow(clippy::new_without_default)]
-    fn new() -> Self;
+    async fn open(&self) -> bool;
 
-    fn open(&self);
+    async fn send(&self, message: Message) -> bool;
 
-    fn send(&self, _message: Message);
+    async fn close(&self);
 
-    fn close(&self);
+    async fn state(&self) -> u8;
 
-    fn state(&self) -> u8;
+    async fn is_same_conn(&self, unique_id: &str) -> bool;
+}
+
+#[derive(Clone)]
+struct WeakManager<T: Clone> {
+    manager: Option<Weak<T>>,
+}
+
+impl<T: Clone> WeakManager<T> {
+    fn new(manager: Option<Weak<T>>) -> Self {
+        Self { manager }
+    }
+
+    fn upgrade(&self) -> Option<Arc<T>> {
+        if let Some(ref manager) = self.manager {
+            if let Some(manager) = manager.upgrade() {
+                return Some(manager);
+            }
+        }
+        None
+    }
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum State {
+    Init = 1,
+    Connecting = 2,
+    Connected = 3,
+    DisConnected = 4,
+    Closed = 5,
+}
+
+#[allow(clippy::from_over_into)]
+impl Into<usize> for State {
+    fn into(self) -> usize {
+        self as usize
+    }
+}
+
+#[allow(clippy::from_over_into)]
+impl Into<u8> for State {
+    fn into(self) -> u8 {
+        self as u8
+    }
+}
+
+pub fn now_ts() -> u128 {
+    let start = std::time::SystemTime::now();
+    let since_the_epoch = start
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("time went backwards");
+    since_the_epoch.as_millis() as u128
+}
+
+// for test
+pub struct SkipServerVerification;
+
+impl SkipServerVerification {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self)
+    }
+}
+
+impl rustls::client::ServerCertVerifier for SkipServerVerification {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls::Certificate,
+        _intermediates: &[Certificate],
+        _server_name: &ServerName,
+        _scts: &mut dyn Iterator<Item = &[u8]>,
+        _ocsp_response: &[u8],
+        _now: SystemTime,
+    ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::ServerCertVerified::assertion())
+    }
 }
