@@ -1,5 +1,5 @@
 use anyhow::Error;
-use bytes::{BufMut, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 use client_proto as codec;
 use client_proto::proto::packet::Packet;
 use tokio_util::codec::{Decoder as TokioDecoder, Encoder as TokioEncoder};
@@ -30,6 +30,9 @@ impl TokioDecoder for Codec {
     type Error = Error;
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        if buf.is_empty() {
+            return Ok(None);
+        }
         codec::decode(buf).map_err(|e| e.into())
     }
 }

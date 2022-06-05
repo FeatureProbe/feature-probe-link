@@ -7,6 +7,7 @@ mod tcp_conn;
 pub use client_proto::proto::Message;
 
 use async_trait::async_trait;
+use client_proto::proto::packet::Packet;
 use lazy_static::lazy_static;
 use rustls::{Certificate, ServerName};
 use std::{collections::HashMap, sync::Arc, sync::Weak, time::SystemTime};
@@ -27,6 +28,7 @@ pub trait PlatformCallback: Send + Sync {
     fn state_change(&self, old: u8, new: u8);
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum NetworkType {
     TypeUnknown,
     TypeNoNet,
@@ -35,6 +37,12 @@ pub enum NetworkType {
     Type3G,
     Type4G,
     Type5G,
+}
+
+impl Default for NetworkType {
+    fn default() -> Self {
+        NetworkType::TypeUnknown
+    }
 }
 
 pub struct LinkClient {}
@@ -70,7 +78,7 @@ impl LinkClient {
 pub trait Connection: Send + Sync {
     async fn open(&self) -> bool;
 
-    async fn send(&self, message: Message) -> bool;
+    async fn send(&self, packet: Packet) -> bool;
 
     async fn close(&self);
 
@@ -108,6 +116,12 @@ pub enum State {
     Closed = 5,
 }
 
+impl Default for State {
+    fn default() -> Self {
+        State::Init
+    }
+}
+
 #[allow(clippy::from_over_into)]
 impl Into<usize> for State {
     fn into(self) -> usize {
@@ -122,12 +136,12 @@ impl Into<u8> for State {
     }
 }
 
-pub fn now_ts() -> u128 {
+pub fn now_ts() -> u64 {
     let start = std::time::SystemTime::now();
     let since_the_epoch = start
         .duration_since(std::time::UNIX_EPOCH)
         .expect("time went backwards");
-    since_the_epoch.as_millis()
+    since_the_epoch.as_millis() as u64
 }
 
 // for test

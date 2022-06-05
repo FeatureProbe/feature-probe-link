@@ -49,7 +49,7 @@ fn init_logger(config: &FPConfig) -> (WorkerGuard, WorkerGuard, WorkerGuard) {
         tracing_appender::non_blocking(rolling::daily(&dir, "error.log"));
     let stdout = layer()
         .with_line_number(true)
-        .with_filter(LevelFilter::DEBUG);
+        .with_filter(LevelFilter::TRACE);
     let info = layer()
         .with_writer(info_appender)
         .with_line_number(true)
@@ -143,6 +143,7 @@ struct EchoService {
 #[async_trait]
 impl BuiltinService for EchoService {
     async fn on_message(&self, cid: &str, _peer_addr: Option<SocketAddr>, message: Message) {
+        log::info!("EchoService recv {:?} from {}", message, cid);
         let cid = cid.to_owned();
         let message = Some(message);
         let req = PushConnReq {
@@ -150,6 +151,7 @@ impl BuiltinService for EchoService {
             message,
             trace: None,
         };
-        let _ = self.pusher.push(req);
+        log::info!("EchoService push {:?}", req);
+        self.pusher.push(req).await;
     }
 }

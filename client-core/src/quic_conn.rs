@@ -1,6 +1,6 @@
 use crate::Connection;
 use async_trait::async_trait;
-use client_proto::proto::Message;
+use client_proto::proto::{packet::Packet, Message};
 
 pub struct QuicConnection {}
 
@@ -10,7 +10,7 @@ impl Connection for QuicConnection {
         return false;
     }
 
-    async fn send(&self, _message: Message) -> bool {
+    async fn send(&self, _p: Packet) -> bool {
         false
     }
 

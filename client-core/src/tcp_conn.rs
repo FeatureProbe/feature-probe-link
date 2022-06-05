@@ -6,10 +6,8 @@ use crate::{Connection, State, WeakManager};
 use anyhow::{anyhow, Result as AnyResult};
 use async_trait::async_trait;
 use client_proto::proto::packet::Packet;
-use client_proto::proto::Message;
 use futures::sink::SinkExt;
 use futures::stream::{SplitSink, SplitStream, StreamExt};
-use parking_lot::Mutex;
 use rustls::{ClientConfig, RootCertStore, ServerName};
 use std::fmt::Display;
 use std::net::ToSocketAddrs;
@@ -18,7 +16,7 @@ use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
-use tokio::sync::Mutex as TMutex;
+use tokio::sync::Mutex;
 use tokio::time::Duration as TDuration;
 use tokio_rustls::client::TlsStream;
 use tokio_rustls::TlsConnector;
@@ -30,14 +28,14 @@ type TcpSplitStream = SplitStream<TcpFramed>;
 
 pub struct TcpConnection {
     pub unique_id: String,
-    pub connecting_ts: u128,
+    pub connecting_ts: u64,
     host: String,
     is_ssl: bool,
     timeout_ms: u64,
     manager: WeakManager<ConnManager>,
-    open_lock: Arc<TMutex<u8>>,
-    conn_state: TMutex<State>,
-    sender: TMutex<Option<TcpSplitSink>>,
+    open_lock: Arc<Mutex<u8>>,
+    conn_state: Mutex<State>,
+    sender: Mutex<Option<TcpSplitSink>>,
     connected_ms: Mutex<u64>,
 }
 
@@ -75,12 +73,12 @@ impl Connection for TcpConnection {
         return false;
     }
 
-    async fn send(&self, message: Message) -> bool {
+    async fn send(&self, packet: Packet) -> bool {
         let mut sender_guard = self.sender.lock().await;
         match *sender_guard {
             Some(ref mut s) => {
-                log::info!("{} send {:?}", self, message);
-                match s.send(Packet::Message(message)).await {
+                log::info!("{} send {:?}", self, packet);
+                match s.send(packet).await {
                     Ok(_) => return true,
                     Err(e) => {
                         drop(sender_guard);
@@ -113,9 +111,9 @@ impl TcpConnection {
             host,
             is_ssl,
             timeout_ms,
-            open_lock: Arc::new(TMutex::new(0)),
-            conn_state: TMutex::new(State::Init),
-            sender: TMutex::new(None),
+            open_lock: Arc::new(Mutex::new(0)),
+            conn_state: Mutex::new(State::Init),
+            sender: Mutex::new(None),
             connecting_ts: crate::now_ts(),
             connected_ms: Mutex::new(0),
         }
@@ -215,6 +213,7 @@ impl TcpConnection {
                     Ok(packet) => manager_recv(manager, packet).await,
                     Err(e) => {
                         log::error!("{:?}", e);
+                        tokio::spawn(manager_fatal(manager));
                         break;
                     }
                 }
@@ -237,7 +236,7 @@ impl TcpConnection {
         }
 
         if old_state != new_state {
-            log::debug!("{} from {:?} to {:?}", self, old_state, new_state);
+            log::trace!("{} from {:?} to {:?}", self, old_state, new_state);
             self.set_conn_state(new_state).await;
 
             if let Some(ref manager) = &self.manager.upgrade() {
@@ -251,13 +250,13 @@ impl TcpConnection {
     pub async fn update_connected_ms(&self) {
         let ts = self.connecting_ts;
         let now = crate::now_ts();
-        let mut ms_guard = self.connected_ms.lock();
+        let mut ms_guard = self.connected_ms.lock().await;
         let d = (now - ts) as u64;
         *ms_guard = d;
     }
 
     pub async fn clear_connected_ms(&self) {
-        let mut ms_guard = self.connected_ms.lock();
+        let mut ms_guard = self.connected_ms.lock().await;
         *ms_guard = 0;
     }
 
@@ -288,6 +287,12 @@ impl TcpConnection {
 async fn manager_recv(manager: WeakManager<ConnManager>, packet: Packet) {
     if let Some(ref manager) = manager.upgrade() {
         manager.recv(packet).await
+    }
+}
+
+async fn manager_fatal(manager: WeakManager<ConnManager>) {
+    if let Some(ref manager) = manager.upgrade() {
+        manager.conn_fatal_error().await;
     }
 }
 
@@ -364,13 +369,12 @@ fn client_config() -> Arc<ClientConfig> {
 mod tests {
 
     use super::*;
+    use client_proto::proto::Message;
     use std::time::Duration;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_conn() {
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter("feature_probe_link=trace")
-            .init();
+        let _ = tracing_subscriber::fmt().with_env_filter("trace").init();
         let tcp_conn = TcpConnection::new("127.0.0.1:8082".to_owned(), false, 100);
         let conn: &dyn Connection = &tcp_conn;
         let c = &conn;
@@ -384,11 +388,16 @@ mod tests {
             body: Default::default(),
             expire_at: None,
         };
-        conn.send(message.clone()).await;
-        conn.send(message.clone()).await;
-        conn.send(message.clone()).await;
-        conn.send(message).await;
 
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        loop {
+            conn.send(Packet::Message(message.clone())).await;
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+
+        // conn.send(message.clone()).await;
+        // conn.send(message.clone()).await;
+        // conn.send(message).await;
+
+        // tokio::time::sleep(Duration::from_secs(2)).await;
     }
 }

@@ -20,7 +20,7 @@ url = "2.2"
 webpki = "0.21"
 quinn = { version = "0.8", default-features = false, features = ["tls-rustls"] }
 tokio = { version = "1", features = ["full"] }
-tokio-util = { version = "0.6.3", features = ["codec"] }
+tokio-util = { version = "0.7", features = ["codec"] }
 tokio-rustls = { version = "0.23", features = ["dangerous_configuration"] }
 rustls = { version = "0.20", features = ["dangerous_configuration"] }
 rustls-pemfile = "0.2.1"

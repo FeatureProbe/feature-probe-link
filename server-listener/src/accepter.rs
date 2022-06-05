@@ -66,7 +66,7 @@ impl Accepter {
         tokio::spawn(async move {
             while let Some(msg) = receiver.next().await {
                 if let Err(e) = writer.send(msg).await {
-                    log::warn!("send err: {:?}, write channel finished!!", e);
+                    log::warn!("send err: {:?}, write channel finished!", e);
                     return;
                 }
             }
@@ -96,7 +96,8 @@ impl Accepter {
                     self.context.accept_message(message);
                 }
                 Ok(None) => {}
-                Err(_) => {
+                Err(e) => {
+                    log::warn!("read error {:?}", e);
                     break;
                 }
             }

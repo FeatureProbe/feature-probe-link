@@ -13,7 +13,7 @@ pub struct IdGen {
 #[derive(Default)]
 struct IdGenInner {
     cur_seq: u64,
-    cur_ts: u128,
+    cur_ts: u64,
 }
 
 impl IdGen {

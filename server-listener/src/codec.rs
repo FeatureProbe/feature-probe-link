@@ -15,7 +15,9 @@ impl TokioEncoder<Packet> for Codec {
     type Error = Error;
 
     fn encode(&mut self, item: Packet, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        log::trace!("encocde {:?}", item);
         let bytes = codec::encode(item)?;
+        log::trace!("encocded {:?}", bytes);
         if dst.remaining_mut() < bytes.len() {
             dst.reserve(bytes.len());
         }
@@ -32,7 +34,9 @@ impl TokioDecoder for Codec {
         if src.is_empty() {
             return Ok(None);
         }
-        codec::decode(src).map_err(|e| e.into())
+        let m = codec::decode(src).map_err(|e| e.into());
+        log::debug!("decode {:?}", m);
+        m
     }
 }
 
