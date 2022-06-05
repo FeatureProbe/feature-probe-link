@@ -1,6 +1,11 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
-use server_base::{tokio, BuiltinService, FPConfig, IdGen};
+use server_base::{
+    proto::{Message, PushConnReq},
+    tokio,
+    tonic::async_trait,
+    BuiltinService, FPConfig, IdGen, PushConn,
+};
 use server_core::{lifecycle::ConnLifeCycle, CoreOperator};
 use server_grpc::{ClusterForwarder, ClusterOperator, Dispatcher};
 use server_hproxy::HPROXY_NAMESPACE;
@@ -104,6 +109,12 @@ async fn start_conn_listener(core: CoreOperator) {
 
 fn init_builtin_services(core: CoreOperator) -> BuiltinServiceMap {
     let mut builtin_handlers: HashMap<String, Arc<dyn BuiltinService>> = HashMap::new();
+    builtin_handlers.insert(
+        "__ECHO".to_owned(),
+        Arc::new(EchoService {
+            pusher: Box::new(core.clone()),
+        }),
+    );
     if let Some(http_proxy) = server_hproxy::build_http_proxy(core) {
         let http_proxy = Arc::new(http_proxy);
         builtin_handlers.insert(HPROXY_NAMESPACE.to_string(), http_proxy);
@@ -123,4 +134,22 @@ fn start_grpc_server(core: CoreOperator) {
     let node_operator = server_state::cluster_state();
     let cluster_operator = ClusterOperator::new(node_operator, core_operator, cluster_forwarder);
     server_grpc::grpc_listen(&service_addr, cluster_operator);
+}
+
+struct EchoService {
+    pusher: Box<dyn PushConn>,
+}
+
+#[async_trait]
+impl BuiltinService for EchoService {
+    async fn on_message(&self, cid: &str, _peer_addr: Option<SocketAddr>, message: Message) {
+        let cid = cid.to_owned();
+        let message = Some(message);
+        let req = PushConnReq {
+            cid,
+            message,
+            trace: None,
+        };
+        let _ = self.pusher.push(req);
+    }
 }
