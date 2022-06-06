@@ -1,5 +1,5 @@
 use anyhow::Error;
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{BufMut, BytesMut};
 use client_proto as codec;
 use client_proto::proto::packet::Packet;
 use tokio_util::codec::{Decoder as TokioDecoder, Encoder as TokioEncoder};

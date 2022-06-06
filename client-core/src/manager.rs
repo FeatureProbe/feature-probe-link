@@ -1,4 +1,4 @@
-use crate::{now_ts, NetworkType};
+use crate::{now_ts, Error, NetworkType};
 use crate::{tcp_conn::TcpConnection, Connection, PlatformCallback, State};
 use client_proto::proto::packet::Packet;
 use client_proto::proto::{Message, Ping};
@@ -20,15 +20,13 @@ pub struct ConnManager {
 #[derive(Default)]
 pub struct ConnManagerInner {
     pub main_conn: RwLock<Option<Box<dyn Connection>>>,
-    pub connecting_ts: RwLock<Option<u64>>, // first connecting ts
+    pub timeout_ms: u64,
     pub host: String,
     pub ssl: bool,
 
     platform_ck: Option<Box<dyn PlatformCallback>>,
     open_lock: Arc<Mutex<u8>>,
     conn_state: RwLock<State>,
-    max_connecting_ms: RwLock<u64>,
-    last_connecting_ts: RwLock<Option<u64>>,
     ping_tx: RwLock<Option<TSender<u8>>>,
     pending_ping: Mutex<u8>,
     network_type: Mutex<NetworkType>,
@@ -37,17 +35,16 @@ pub struct ConnManagerInner {
 impl ConnManager {
     #[allow(dead_code)]
     pub fn open(self: &Arc<Self>) {
+        log::trace!("manager open");
         let slf = self.clone();
         tokio::spawn(async move {
             let _lock = slf.inner.open_lock.lock().await;
             if slf.is_opened().await {
                 return;
             }
-            slf.set_conn_state(State::Connecting, None).await;
-            slf.reset_connecting_ts().await;
             slf.preemptive_open().await;
             slf.auto_reconnect();
-            // slf.start_ping_pong();
+            slf.start_ping_pong();
         });
     }
 
@@ -55,12 +52,16 @@ impl ConnManager {
     pub fn send(&self, message: Message) {
         // TODO: send queue
         let slf = self.clone();
-        tokio::spawn(async move { slf.do_send(Packet::Message(message)).await });
+        tokio::spawn(async move {
+            let _ = slf.send_packet(Packet::Message(message));
+        });
     }
 
     pub async fn set_main_conn_if_none(self: &Arc<Self>, conn: Box<dyn Connection>) {
         let slf = self.clone();
+        log::trace!("set_main_conn_if_none get lock");
         let mut main_conn = self.inner.main_conn.write().await;
+        log::trace!("set_main_conn_if_none got lock");
         if main_conn.is_none() {
             *main_conn = Some(conn);
             tokio::task::spawn_blocking(move || match slf.inner.platform_ck {
@@ -70,17 +71,22 @@ impl ConnManager {
         }
     }
 
-    pub async fn recv(self: &Arc<Self>, packet: Packet) {
-        let manager = self.inner.clone();
+    pub async fn recv(self: &Arc<Self>, packet: Result<Packet, Error>) {
+        let slf = self.clone();
         match packet {
-            Packet::Message(message) => {
-                tokio::task::spawn_blocking(move || match manager.platform_ck {
+            Ok(Packet::Message(message)) => {
+                tokio::task::spawn_blocking(move || match slf.inner.platform_ck {
                     Some(ref cb) => cb.recv(message),
                     None => {}
                 });
             }
-            Packet::Pong(pong) => {
-                log::debug!("recv pong, rtt is {}", now_ts() - pong.timestamp)
+            Ok(Packet::Pong(pong)) => {
+                log::debug!("recv pong, rtt is {}", now_ts() - pong.timestamp);
+                slf.reset_pending_ping().await;
+            }
+            Err(e) => {
+                log::error!("manager {:?}", e);
+                self.cleanup().await
             }
             _ => log::info!("unsupport message type: {:?}", packet),
         }
@@ -92,7 +98,15 @@ impl ConnManager {
     }
 
     pub async fn set_conn_state(&self, new_state: State, unique_id: Option<&str>) {
+        log::trace!("set_conn_state get lock");
         let main_conn = self.inner.main_conn.read().await;
+        log::trace!("set_conn_state got lock");
+        log::trace!(
+            "manager set_conn_state {:?} by {:?} current main_conn {:?}",
+            new_state,
+            unique_id,
+            main_conn.is_some()
+        );
         match unique_id {
             Some(unique_id) if main_conn.is_some() => {
                 if let Some(ref conn) = *main_conn {
@@ -113,11 +127,19 @@ impl ConnManager {
         matches!(self.conn_state().await, State::Closed)
     }
 
-    pub async fn conn_fatal_error(&self) {
+    pub async fn drop_main_conn(&self) {
+        log::trace!("manager drop main_conn get lock");
+        let mut main_conn = self.inner.main_conn.write().await;
+        log::trace!("manager drop main_conn got lock");
+        main_conn.take(); // drop main_conn
+    }
+
+    async fn cleanup(&self) {
         if self.is_closed().await {
             return;
         }
-        self.try_disconnect().await;
+        self.drop_main_conn().await;
+        self.set_conn_state(State::DisConnected, None).await;
     }
 
     fn start_ping_pong(self: &Arc<Self>) {
@@ -131,19 +153,20 @@ impl ConnManager {
             loop {
                 let _ = timeout(Duration::from_secs(PING_INTERVAL_SEC), ping_rx.recv()).await;
                 match slf.conn_state().await {
-                    State::Connected if slf.pending_ping_num().await <= MAX_PENDING_PING_NUM => {
+                    State::Connected if slf.pending_ping_num().await < MAX_PENDING_PING_NUM => {
                         slf.inc_pending_ping().await;
                         slf.do_send(Packet::Ping(Ping {
                             timestamp: now_ts(),
                         }))
                         .await;
                     }
-                    _ => {
+                    State::Connected => {
                         log::error!("max pending ping");
                         slf.reset_pending_ping().await;
-                        tokio::spawn(async move { slf.conn_fatal_error().await });
+                        tokio::spawn(async move { slf.cleanup().await });
                         break;
                     }
+                    _ => slf.reset_pending_ping().await,
                 }
             }
         });
@@ -151,11 +174,14 @@ impl ConnManager {
 
     // call multiple times create multiple connections, fastest wins as current connection
     async fn preemptive_open(self: &Arc<Self>) {
+        self.set_conn_state(State::Connecting, None).await;
         log::debug!("preemptive opening");
-        self.reset_last_connecting_ts().await;
-        let timeout_ms = self.inner.max_connecting_ms.read().await;
-        let conn = TcpConnection::new(self.inner.host.clone(), self.inner.ssl, *timeout_ms)
-            .with_manager(Arc::downgrade(self));
+        let conn = TcpConnection::new(
+            self.inner.host.clone(),
+            self.inner.ssl,
+            self.inner.timeout_ms,
+        )
+        .with_manager(Arc::downgrade(self));
         if conn.open().await {
             self.set_main_conn_if_none(Box::new(conn)).await;
         }
@@ -183,15 +209,24 @@ impl ConnManager {
     async fn reconnect_if_need(self: &Arc<Self>) {
         // if state is closed, mean no need to reconnect
         // only reconnect when state is disconnected
+        log::trace!("reconnect_if_need get read lock");
         let main_conn = self.inner.main_conn.read().await;
-        log::info!("main_conn {:?}", main_conn.is_some());
+        log::trace!("reconnect_if_need got read lock");
+        log::debug!(
+            "main_conn {:?} current state {:?}",
+            main_conn.is_some(),
+            self.conn_state().await
+        );
         if self.conn_state().await == State::DisConnected
             && self.network_type().await != NetworkType::TypeNoNet
         {
-            self.open();
+            log::trace!("need reconnect");
+            let slf = self.clone();
+            tokio::spawn(async move { slf.preemptive_open().await });
         }
     }
 
+    #[allow(dead_code)]
     async fn set_network_type(&self, network_type: NetworkType) -> NetworkType {
         let mut guard = self.inner.network_type.lock().await;
         let old_network_type = *guard;
@@ -204,17 +239,25 @@ impl ConnManager {
         *guard
     }
 
-    async fn do_send(&self, packet: Packet) {
-        let main_conn = self.inner.main_conn.read().await;
-        match *main_conn {
-            Some(ref conn) => conn.send(packet).await,
-            None => return log::info!("send failed, conn not ready"),
-        };
+    async fn do_send(self: &Arc<Self>, packet: Packet) {
+        let slf = self.clone();
+        tokio::spawn(async move { slf.send_packet(packet).await });
     }
 
-    async fn reset_last_connecting_ts(&self) {
-        let mut guard = self.inner.last_connecting_ts.write().await;
-        *guard = Some(crate::now_ts())
+    async fn send_packet(&self, packet: Packet) {
+        log::trace!("do_send get lock");
+        let main_conn = self.inner.main_conn.read().await;
+        log::trace!("do_send got lock");
+        match *main_conn {
+            Some(ref conn) => {
+                if let Err(e) = conn.send(packet).await {
+                    log::error!("send error: {}", e.to_string());
+                    drop(main_conn); // drop lock
+                    self.cleanup().await;
+                }
+            }
+            None => log::info!("send failed, conn not ready"),
+        };
     }
 
     async fn is_opened(&self) -> bool {
@@ -227,11 +270,6 @@ impl ConnManager {
     async fn _set_conn_state(&self, new_state: State) {
         let mut guard = self.inner.conn_state.write().await;
         *guard = new_state;
-    }
-
-    async fn reset_connecting_ts(&self) {
-        let mut guard = self.inner.connecting_ts.write().await;
-        *guard = Some(crate::now_ts())
     }
 
     async fn pending_ping_num(&self) -> u8 {
@@ -248,11 +286,6 @@ impl ConnManager {
         let mut pending_ping = self.inner.pending_ping.lock().await;
         *pending_ping += 1;
     }
-
-    async fn try_disconnect(&self) {
-        let mut main_conn = self.inner.main_conn.write().await;
-        main_conn.take(); // drop main_conn
-    }
 }
 
 #[cfg(test)]
@@ -267,6 +300,7 @@ mod tests {
         let manager = Arc::new(ConnManager {
             inner: Arc::new(ConnManagerInner {
                 host: "127.0.0.1:8082".to_owned(),
+                timeout_ms: 100,
                 ..Default::default()
             }),
         });
@@ -281,15 +315,15 @@ mod tests {
             expire_at: None,
         };
 
-        loop {
-            manager.send(message.clone());
-            tokio::time::sleep(Duration::from_secs(2)).await;
-        }
+        // loop {
+        //     manager.send(message.clone());
+        //     tokio::time::sleep(Duration::from_secs(2)).await;
+        // }
 
-        // conn.send(message.clone()).await;
-        // conn.send(message.clone()).await;
-        // conn.send(message).await;
+        manager.send(message.clone());
+        manager.send(message.clone());
+        manager.send(message);
 
-        // tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_secs(2)).await;
     }
 }

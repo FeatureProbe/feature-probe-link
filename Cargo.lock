@@ -431,6 +431,7 @@ dependencies = [
  "serde 1.0.137",
  "serde_json",
  "stream-cancel",
+ "thiserror",
  "time 0.3.9",
  "tokio",
  "tokio-rustls",

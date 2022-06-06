@@ -11,6 +11,7 @@ use client_proto::proto::packet::Packet;
 use lazy_static::lazy_static;
 use rustls::{Certificate, ServerName};
 use std::{collections::HashMap, sync::Arc, sync::Weak, time::SystemTime};
+use thiserror::Error;
 use tokio::runtime::{Builder, Runtime};
 
 lazy_static! {
@@ -74,11 +75,20 @@ impl LinkClient {
     pub fn set_attrs(&self, _attrs: HashMap<String, String>) {}
 }
 
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("SendError {msg}")]
+    SendError { msg: String },
+
+    #[error("RecvError {msg}")]
+    RecvError { msg: String },
+}
+
 #[async_trait]
 pub trait Connection: Send + Sync {
     async fn open(&self) -> bool;
 
-    async fn send(&self, packet: Packet) -> bool;
+    async fn send(&self, packet: Packet) -> Result<(), Error>;
 
     async fn close(&self);
 

@@ -34,8 +34,7 @@ pub async fn tcp_accept_stream<S: AsyncRead + AsyncWrite + Unpin + Send + 'stati
         peer_addr,
     };
 
-    // let frame = Framed::with_capacity(stream, Codec::new(), tokio_codec_size());
-    let frame = Framed::new(stream, Codec::new());
+    let frame = Framed::with_capacity(stream, Codec::new(), tokio_codec_size());
     let (writer, reader) = frame.split();
     Accepter::new(context).accept_stream(reader, writer, Box::new(Tcp { sender }), receiver)
 }

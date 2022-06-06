@@ -1,8 +1,8 @@
 use crate::codec::Codec;
 use crate::id_gen::ID_GEN;
 use crate::manager::ConnManager;
-use crate::SkipServerVerification;
 use crate::{Connection, State, WeakManager};
+use crate::{Error, SkipServerVerification};
 use anyhow::{anyhow, Result as AnyResult};
 use async_trait::async_trait;
 use client_proto::proto::packet::Packet;
@@ -62,34 +62,29 @@ impl Connection for TcpConnection {
         {
             Ok(conn) => {
                 self.handle_tcp_stream(conn).await;
+                log::debug!("{} open success", self);
                 return true;
             }
             Err(e) => {
-                self.on_fatal_error(format!("{} failed to connect {:?}", self, e))
-                    .await;
+                log::debug!("{} open failed {}", self, e.to_string());
+                return false;
             }
         }
-        log::debug!("{} open finish", self);
-        return false;
     }
 
-    async fn send(&self, packet: Packet) -> bool {
+    async fn send(&self, packet: Packet) -> Result<(), Error> {
         let mut sender_guard = self.sender.lock().await;
         match *sender_guard {
             Some(ref mut s) => {
                 log::info!("{} send {:?}", self, packet);
-                match s.send(packet).await {
-                    Ok(_) => return true,
-                    Err(e) => {
-                        drop(sender_guard);
-                        self.on_fatal_error(format!("{} send error: {:?}", self, e))
-                            .await;
-                    }
-                }
+                s.send(packet)
+                    .await
+                    .map_err(|e| Error::SendError { msg: e.to_string() })?;
             }
             None => log::warn!("{} packet drop, conn not ready", self),
-        }
-        false
+        };
+        // false
+        Ok(())
     }
 
     async fn close(&self) {}
@@ -129,10 +124,6 @@ impl TcpConnection {
             self.conn_state().await,
             State::Connecting | State::Connected
         )
-    }
-
-    pub async fn is_closed(&self) -> bool {
-        self.conn_state().await == State::Closed
     }
 
     pub async fn open_tcp_stream(
@@ -209,14 +200,11 @@ impl TcpConnection {
         tokio::spawn(async move {
             while let Some(p) = receiver.next().await {
                 let manager = manager.clone();
-                match p {
-                    Ok(packet) => manager_recv(manager, packet).await,
-                    Err(e) => {
-                        log::error!("{:?}", e);
-                        tokio::spawn(manager_fatal(manager));
-                        break;
-                    }
-                }
+                manager_recv(
+                    manager,
+                    p.map_err(|e| Error::RecvError { msg: e.to_string() }),
+                )
+                .await
             }
         });
     }
@@ -264,35 +252,11 @@ impl TcpConnection {
         let mut guard = self.conn_state.lock().await;
         *guard = new_state;
     }
-
-    pub async fn on_fatal_error(&self, msg: String) {
-        log::warn!("{} fatal {}", self, msg);
-        if self.is_closed().await {
-            return;
-        }
-        self.try_disconnect().await;
-    }
-
-    pub async fn try_disconnect(&self) {
-        log::debug!("{} try disconnect", self);
-        let mut guard = self.sender.lock().await;
-        self.change_conn_state(State::DisConnected).await;
-        if let Some(conn) = guard.take() {
-            log::debug!("{} drop connection", self);
-            drop(conn)
-        }
-    }
 }
 
-async fn manager_recv(manager: WeakManager<ConnManager>, packet: Packet) {
+async fn manager_recv(manager: WeakManager<ConnManager>, packet: Result<Packet, Error>) {
     if let Some(ref manager) = manager.upgrade() {
         manager.recv(packet).await
-    }
-}
-
-async fn manager_fatal(manager: WeakManager<ConnManager>) {
-    if let Some(ref manager) = manager.upgrade() {
-        manager.conn_fatal_error().await;
     }
 }
 
@@ -390,7 +354,7 @@ mod tests {
         };
 
         loop {
-            conn.send(Packet::Message(message.clone())).await;
+            let _ = conn.send(Packet::Message(message.clone())).await;
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
 
