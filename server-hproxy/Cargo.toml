@@ -8,7 +8,7 @@ resolver = "2"
 url = "2.2"
 log = "0.4"
 rand = "^0.8"
-regex = "1"
+regex = "1.5.6"
 futures = "0.3"
 async-trait = "0.1"
 reqwest = { version = "0.11", default-features = false, features = [
