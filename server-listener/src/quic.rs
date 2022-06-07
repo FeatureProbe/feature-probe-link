@@ -140,8 +140,8 @@ async fn accept_quic_stream(
         lifecycle,
         peer_addr: None,
     };
-    let reader = FramedRead::with_capacity(recv, Codec::new(), tokio_codec_size());
-    let writer = FramedWrite::new(send, Codec::new());
+    let reader = FramedRead::with_capacity(recv, Codec::default(), tokio_codec_size());
+    let writer = FramedWrite::new(send, Codec::default());
     Accepter::new(context).accept_stream(reader, writer, Box::new(Quic { sender }), receiver);
     log::trace!("quic stream accept");
 }

@@ -4,19 +4,16 @@ use client_proto as codec;
 use client_proto::proto::packet::Packet;
 use tokio_util::codec::{Decoder as TokioDecoder, Encoder as TokioEncoder};
 
-pub struct Codec {}
-
-impl Codec {
-    pub fn new() -> Self {
-        Self {}
-    }
+#[derive(Default)]
+pub struct Codec {
+    codec: codec::Codec,
 }
 
 impl TokioEncoder<Packet> for Codec {
     type Error = Error;
 
     fn encode(&mut self, item: Packet, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        let bytes = codec::encode(item)?;
+        let bytes = self.codec.encode(item)?;
         if dst.remaining_mut() < bytes.len() {
             dst.reserve(bytes.len());
         }
@@ -33,12 +30,6 @@ impl TokioDecoder for Codec {
         if buf.is_empty() {
             return Ok(None);
         }
-        codec::decode(buf).map_err(|e| e.into())
-    }
-}
-
-impl Default for Codec {
-    fn default() -> Self {
-        Codec::new()
+        self.codec.decode(buf).map_err(|e| e.into())
     }
 }

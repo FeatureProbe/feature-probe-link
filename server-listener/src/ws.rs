@@ -1,9 +1,9 @@
 use crate::accepter::Accepter;
 use bytes::{Bytes, BytesMut};
 use futures::stream::StreamExt;
-use server_base::codec::{self, DecodeError, EncodeError};
-use server_base::proto::packet::Packet;
-use server_base::{proto::Message, tokio};
+use server_base::codec::{DecodeError, EncodeError, Message};
+use server_base::proto;
+use server_base::tokio;
 use server_base::{ConnContext, LifeCycle, Protocol, RecvMessage, SendMessage};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -18,18 +18,21 @@ impl WsCodec {
     pub fn new() -> Self {
         Self {}
     }
-}
 
-impl WsCodec {
-    pub fn encode(&self, item: Message) -> Result<Bytes, EncodeError> {
-        let packet = Packet::Message(item);
-        codec::encode(packet)
+    pub fn encode(&self, item: proto::Message) -> Result<Bytes, EncodeError> {
+        let packet = proto::packet::Packet::Message(item);
+        let p = proto::Packet {
+            packet: Some(packet),
+        };
+        let mut buf = BytesMut::with_capacity(p.encoded_len());
+        p.encode(&mut buf)?;
+        Ok(buf.freeze())
     }
 
-    pub fn decode(&self, src: &mut BytesMut) -> Result<Option<Message>, DecodeError> {
-        let packet = codec::decode(src)?;
+    pub fn decode(&self, src: &mut BytesMut) -> Result<Option<proto::Message>, DecodeError> {
+        let packet = proto::Packet::decode(src)?.packet;
         match packet {
-            Some(Packet::Message(m)) => Ok(Some(m)),
+            Some(proto::packet::Packet::Message(m)) => Ok(Some(m)),
             _ => Ok(None),
         }
     }
@@ -79,7 +82,7 @@ struct Ws {
 }
 
 impl SendMessage for Ws {
-    fn send(&self, msg: Message) -> Result<(), ()> {
+    fn send(&self, msg: proto::Message) -> Result<(), ()> {
         let bytes = self
             .codec
             .encode(msg)
@@ -93,7 +96,7 @@ impl SendMessage for Ws {
 impl RecvMessage for Ws {
     type Item = WsMessage;
 
-    fn recv(&self, item: Self::Item) -> Result<Option<Message>, ()> {
+    fn recv(&self, item: Self::Item) -> Result<Option<proto::Message>, ()> {
         match item {
             WsMessage::Text(_) => {}
             WsMessage::Binary(vec) => match self

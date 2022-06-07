@@ -185,7 +185,7 @@ impl TcpConnection {
 
     pub async fn handle_tcp_stream(&self, stream: TStream) {
         log::info!("{} handle_tcp_stream", self);
-        let framed_stream = Framed::new(stream, Codec::new());
+        let framed_stream = Framed::new(stream, Codec::default());
         let (sender, receiver) = framed_stream.split();
         let mut send_guard = self.sender.lock().await;
         *send_guard = Some(sender);
