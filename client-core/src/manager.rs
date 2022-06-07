@@ -8,8 +8,8 @@ use tokio::sync::mpsc::{unbounded_channel as tchannel, UnboundedSender as TSende
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::{interval, timeout};
 
-const CONNECTIVITY_CHECK_MS: u64 = 500;
-const PING_INTERVAL_SEC: u64 = 8;
+const CONNECTIVITY_CHECK_MS: u64 = 1000;
+const PING_INTERVAL_SEC: u64 = 3;
 const MAX_PENDING_PING_NUM: u8 = 3;
 
 #[derive(Clone, Default)]
@@ -217,7 +217,8 @@ impl ConnManager {
             main_conn.is_some(),
             self.conn_state().await
         );
-        if self.conn_state().await == State::DisConnected
+        if (self.conn_state().await == State::DisConnected
+            || self.conn_state().await == State::Connecting)
             && self.network_type().await != NetworkType::TypeNoNet
         {
             log::trace!("need reconnect");
