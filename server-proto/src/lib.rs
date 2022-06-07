@@ -1,12 +1,12 @@
-pub use prost::Message;
-pub use prost::{DecodeError, EncodeError};
-pub use tonic;
-
 use bytes::{Buf, Bytes, BytesMut};
+pub use prost::{DecodeError, EncodeError, Message};
+pub use tonic;
 
 pub mod proto {
     include!(concat!(env!("OUT_DIR"), "/featureprobe.link.rs"));
 }
+
+const VARINT_MAX_LEN: usize = 10;
 
 #[derive(Default)]
 pub struct Codec {
@@ -27,9 +27,34 @@ impl Codec {
         &mut self,
         buf: &mut BytesMut,
     ) -> Result<Option<proto::packet::Packet>, DecodeError> {
-        if buf.is_empty() {
-            return Ok(None);
+        if buf.len() < VARINT_MAX_LEN {
+            return self.decode_length_delimiter(buf);
         }
+
+        self._decode(buf)
+    }
+
+    fn decode_length_delimiter(
+        &mut self,
+        buf: &mut BytesMut,
+    ) -> Result<Option<proto::packet::Packet>, DecodeError> {
+        match self.decode_len {
+            Some(_) => self._decode(buf),
+            None => {
+                let mut b = buf.clone();
+                let new_buf = &mut b;
+                match prost::decode_length_delimiter(new_buf) {
+                    Ok(_) => self._decode(buf),
+                    Err(_) => Ok(None),
+                }
+            }
+        }
+    }
+
+    fn _decode(
+        &mut self,
+        buf: &mut BytesMut,
+    ) -> Result<Option<proto::packet::Packet>, DecodeError> {
         let len = if let Some(len) = self.decode_len.take() {
             len
         } else {
@@ -52,12 +77,12 @@ mod tests {
     use bytes::BufMut;
 
     use super::*;
-    pub fn build_packet(namespace: String) -> proto::packet::Packet {
+    pub fn build_packet(namespace: String, body_len: usize) -> proto::packet::Packet {
         let message: proto::Message = proto::Message {
             namespace,
             path: "path".to_owned(),
             metadata: Default::default(),
-            body: vec![1, 2, 3, 4],
+            body: vec![1; body_len],
             expire_at: None,
         };
         proto::packet::Packet::Message(message)
@@ -78,16 +103,13 @@ mod tests {
     fn test_decode() -> Result<(), prost::DecodeError> {
         let mut codec = Codec::default();
         let request = String::from("Hello, World!");
-        let request = build_packet(request);
+        let request = build_packet(request, 4);
         let request_vector = codec.encode(request).unwrap();
         let request_vector = [request_vector].concat();
         let mut bm = BytesMut::from(request_vector.as_slice());
 
-        let request_deserialized_result = match codec.decode(&mut bm) {
-            Ok(request_deserialized_result) => request_deserialized_result,
-            Err(e) => return Err(e),
-        };
-        println!("1. {:#?}", request_deserialized_result);
+        let result = codec.decode(&mut bm);
+        assert!(result.is_ok());
 
         Ok(())
     }
@@ -96,22 +118,18 @@ mod tests {
     fn test_decode_multiple() -> Result<(), prost::DecodeError> {
         let mut codec = Codec::default();
         let request = String::from("Hello, World!");
-        let request = build_packet(request);
+        let request = build_packet(request, 4);
         let request_vector = codec.encode(request).unwrap();
         let request_vector = [request_vector.clone(), request_vector].concat();
         let mut bm = BytesMut::from(request_vector.as_slice());
 
-        let request_deserialized_result = match codec.decode(&mut bm) {
-            Ok(request_deserialized_result) => request_deserialized_result,
-            Err(e) => return Err(e),
-        };
-        println!("1. {:#?}", request_deserialized_result);
+        let result = codec.decode(&mut bm);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_some());
 
-        let request_deserialized_result = match codec.decode(&mut bm) {
-            Ok(request_deserialized_result) => request_deserialized_result,
-            Err(e) => return Err(e),
-        };
-        println!("2. {:#?}", request_deserialized_result);
+        let result = codec.decode(&mut bm);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_some());
         Ok(())
     }
 
@@ -119,7 +137,7 @@ mod tests {
     fn test_decode_partial() -> Result<(), prost::DecodeError> {
         let mut codec = Codec::default();
         let request = String::from("Hello, World!");
-        let request = build_packet(request);
+        let request = build_packet(request, 4);
         let request_vector = codec.encode(request).unwrap();
         let request_vector = [request_vector].concat();
 
@@ -129,6 +147,48 @@ mod tests {
         assert!(result.is_none());
 
         bm.put(&request_vector[len / 2..]);
+        let result = codec.decode(&mut bm)?;
+        assert!(result.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn test_decode_partial_varint() -> Result<(), prost::DecodeError> {
+        let mut codec = Codec::default();
+        let request = String::from("Hello, World!");
+        let request = build_packet(request, 1000);
+        let request_vector = codec.encode(request).unwrap();
+        let request_vector = [request_vector].concat();
+
+        let mut bm = BytesMut::from(&request_vector[0..1]);
+        let result = codec.decode(&mut bm)?;
+        assert!(result.is_none());
+
+        bm.put(&request_vector[1..]);
+        let result = codec.decode(&mut bm)?;
+        assert!(result.is_some());
+
+        let mut bm = BytesMut::from(&request_vector[0..2]);
+        let result = codec.decode(&mut bm)?;
+        assert!(result.is_none());
+
+        bm.put(&request_vector[2..]);
+        let result = codec.decode(&mut bm)?;
+        assert!(result.is_some());
+
+        let mut bm = BytesMut::from(&request_vector[0..3]);
+        let result = codec.decode(&mut bm)?;
+        assert!(result.is_none());
+
+        bm.put(&request_vector[3..]);
+        let result = codec.decode(&mut bm)?;
+        assert!(result.is_some());
+
+        let mut bm = BytesMut::from(&request_vector[0..4]);
+        let result = codec.decode(&mut bm)?;
+        assert!(result.is_none());
+
+        bm.put(&request_vector[4..]);
         let result = codec.decode(&mut bm)?;
         assert!(result.is_some());
         Ok(())
