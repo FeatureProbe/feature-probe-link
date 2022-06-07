@@ -27,6 +27,9 @@ impl Codec {
         &mut self,
         buf: &mut BytesMut,
     ) -> Result<Option<proto::packet::Packet>, DecodeError> {
+        if buf.is_empty() {
+            return Ok(None);
+        }
         let len = if let Some(len) = self.decode_len.take() {
             len
         } else {
@@ -58,6 +61,17 @@ mod tests {
             expire_at: None,
         };
         proto::packet::Packet::Message(message)
+    }
+
+    #[test]
+    fn test_decode_empty() -> Result<(), prost::DecodeError> {
+        let mut codec = Codec::default();
+        let mut bm = BytesMut::new();
+        let result = codec.decode(&mut bm);
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+        Ok(())
     }
 
     #[test]
@@ -111,13 +125,12 @@ mod tests {
 
         let len = request_vector.len();
         let mut bm = BytesMut::from(&request_vector[0..len / 2]);
-        let request_deserialized_result = codec.decode(&mut bm)?;
-        println!("1. {:#?}", request_deserialized_result);
+        let result = codec.decode(&mut bm)?;
+        assert!(result.is_none());
 
         bm.put(&request_vector[len / 2..]);
-        let request_deserialized_result = codec.decode(&mut bm)?;
-        println!("1. {:#?}", request_deserialized_result);
-
+        let result = codec.decode(&mut bm)?;
+        assert!(result.is_some());
         Ok(())
     }
 }
