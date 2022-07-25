@@ -9,117 +9,116 @@ message Trace {
   string span_id = 2;
 }
 
-message SubReq {
-  string cid = 1;
+message JoinReq {
+  string sid = 1;
   string namespace = 2;
-  optional string channel_family = 3;
-  string channel = 4;
+  optional string room_prefix = 3;
+  string room = 4;
   Trace trace = 10;
 }
 
-message SubResp { bool success = 1; }
+message JoinResp { bool success = 1; }
 
-message BulkSubReq {
-  string cid = 1;
+message BulkJoinReq {
+  string sid = 1;
   string namespace = 2;
-  map<string, string> channels = 3;
+  map<string, string> rooms = 3;
   Trace trace = 10;
 }
 
-message BulkSubResp { bool success = 1; }
+message BulkJoinResp { bool success = 1; }
 
-message UnSubReq {
-  string cid = 1;
+message LeaveReq {
+  string sid = 1;
   string namespace = 2;
-  optional string channel_family = 3;
-  string channel = 4;
+  optional string room_prefix = 3;
+  string room = 4;
   Trace trace = 10;
 }
 
-message UnSubResp { bool success = 1; }
+message LeaveResp { bool success = 1; }
 
-message PubReq {
+message EmitReq {
   Message message = 1;
-  optional string channel_family = 2;
-  repeated string channels = 3;
+  optional string room_prefix = 2;
+  repeated string rooms = 3;
   bool success_channel = 4;
   Trace trace = 10;
 }
 
-message BulkPubReq { repeated PubReq requests = 1; }
+message BulkEmitReq { repeated EmitReq requests = 1; }
 
-message PushConnReq {
-  string cid = 1;
+message EmitSidReq {
+  string sid = 1;
   Message message = 2;
   Trace trace = 10;
 }
 
-message PushConnResp {
+message EmitSidResp {
   bool success = 1;
   bool sent = 2;
 }
 
-message PubResp {
+message EmitResp {
   bool success = 1;
-  // channels is emtry when PubReq success_channel is false
-  repeated string channels = 2;
-  repeated PubStatus status = 3;
+  repeated string rooms = 2;
+  repeated EmitStatus status = 3;
 }
 
-message BulkPubResp { repeated PubResp responses = 1; }
+message BulkEmitResp { repeated EmitResp responses = 1; }
 
-message GetConnsReq {
+message ConnRoomReq {
   string namespace = 1;
-  optional string channel_family = 2;
-  string channel = 3;
+  optional string room_prefix = 2;
+  string room = 3;
   Trace trace = 10;
 }
 
-message Channels { repeated string channels = 1; }
+message Rooms { repeated string rooms = 1; }
 
-message ConnChannels {
-  string cid = 1;
-  map<string, Channels> channels = 2;
+message ConnRooms {
+  string sid = 1;
+  map<string, Rooms> rooms = 2;
 }
 
-message PubStatus {
-  ConnChannels conn_channels = 1;
+message EmitStatus {
+  ConnRooms rooms = 1;
   bool sent = 2;
 }
 
-message GetConnsResp {
+message ConnRoomResp {
   bool success = 1;
-  repeated ConnChannels conn_channels = 2;
+  repeated ConnRooms rooms = 2;
 }
 
-message GetChannelsReq {
+message GetRoomsReq {
   string namespace = 1;
-  optional string channel_family = 2;
-  Channels Channels = 3;
+  optional string room_prefix = 2;
+  Rooms Rooms = 3;
   Trace trace = 10;
 }
 
 message GetChannelsResp {
   string namespace = 1;
-  optional string channel_family = 2;
-  Channels Channels = 3;
+  optional string room_prefix = 2;
+  Rooms Rooms = 3;
 }
 
 service LinkService {
-  rpc Subscribe(SubReq) returns (SubResp) {}
-  rpc Unsubscribe(UnSubReq) returns (UnSubResp) {}
-  rpc BulkSubscribe(BulkSubReq) returns (BulkSubResp) {}
-  rpc PushConn(PushConnReq) returns (PushConnResp) {}
-  rpc Publish(PubReq) returns (PubResp) {}
-  rpc BulkPublish(BulkPubReq) returns (BulkPubResp) {}
-  rpc GetConnChannels(GetConnsReq) returns (GetConnsResp) {}
-  rpc GetChannels(GetChannelsReq) returns (GetChannelsResp) {}
+  rpc Join(JoinReq) returns (JoinResp) {}
+  rpc Leave(LeaveReq) returns (LeaveResp) {}
+  rpc BulkJoin(BulkJoinReq) returns (BulkJoinResp) {}
+  rpc EmitSid(EmitSidReq) returns (EmitSidResp) {}
+  rpc Emit(EmitReq) returns (EmitResp) {}
+  rpc BulkEmit(BulkEmitReq) returns (BulkEmitResp) {}
+  rpc GetConnRooms(ConnRoomReq) returns (ConnRoomResp) {}
+  rpc GetRooms(GetRoomsReq) returns (GetChannelsResp) {}
 }
 
 message MessageReq {
-  string cid = 1;
+  string sid = 1;
   Message message = 2;
-  map<string, Channels> channels = 3;
+  map<string, Rooms> rooms = 3;
   Trace trace = 10;
 }
 
