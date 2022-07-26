@@ -1,7 +1,7 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use server_base::{
-    proto::{Message, PushConnReq},
+    proto::{EmitSidReq, Message},
     tokio,
     tonic::async_trait,
     BuiltinService, FPConfig, IdGen, PushConn,
@@ -84,10 +84,10 @@ async fn start_conn_listener(core: CoreOperator) {
     let builtin_services = Arc::new(init_builtin_services(core.clone()));
     let config = server_state::config();
     let node_id = server_state::cluster_state().server_node().node_id.clone();
-    let cid_gen = IdGen::new(node_id);
+    let sid_gen = IdGen::new(node_id);
     let listen_addr = config.conn_listen_addr();
     let cert_path = config.cert_path();
-    let lifecycle = Arc::new(ConnLifeCycle::new(core, cid_gen, builtin_services.clone()));
+    let lifecycle = Arc::new(ConnLifeCycle::new(core, sid_gen, builtin_services.clone()));
     log::info!("tls cert path: {:?}", cert_path);
 
     if let Some(cert_path) = config.cert_path_quic() {
@@ -142,12 +142,12 @@ struct EchoService {
 
 #[async_trait]
 impl BuiltinService for EchoService {
-    async fn on_message(&self, cid: &str, _peer_addr: Option<SocketAddr>, message: Message) {
-        log::info!("EchoService recv {:?} from {}", message, cid);
-        let cid = cid.to_owned();
+    async fn on_message(&self, sid: &str, _peer_addr: Option<SocketAddr>, message: Message) {
+        log::info!("EchoService recv {:?} from {}", message, sid);
+        let sid = sid.to_owned();
         let message = Some(message);
-        let req = PushConnReq {
-            cid,
+        let req = EmitSidReq {
+            sid,
             message,
             trace: None,
         };

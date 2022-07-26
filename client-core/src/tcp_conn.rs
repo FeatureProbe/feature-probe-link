@@ -199,6 +199,7 @@ impl TcpConnection {
         let manager = self.manager.clone();
         tokio::spawn(async move {
             while let Some(p) = receiver.next().await {
+                log::trace!("do_recv {:?}", p);
                 let manager = manager.clone();
                 manager_recv(
                     manager,
@@ -353,15 +354,10 @@ mod tests {
             expire_at: None,
         };
 
-        loop {
-            let _ = conn.send(Packet::Message(message.clone())).await;
-            tokio::time::sleep(Duration::from_secs(2)).await;
-        }
+        let _ = conn.send(Packet::Message(message.clone())).await;
+        let _ = conn.send(Packet::Message(message.clone())).await;
+        let _ = conn.send(Packet::Message(message)).await;
 
-        // conn.send(message.clone()).await;
-        // conn.send(message.clone()).await;
-        // conn.send(message).await;
-
-        // tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_secs(2)).await;
     }
 }

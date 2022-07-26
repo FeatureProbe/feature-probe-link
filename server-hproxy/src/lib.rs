@@ -25,8 +25,8 @@ pub enum Error {
     #[error("Invalid Method {method} of {url}")]
     InvalidMethod { method: String, url: String },
 
-    #[error("No Message in MessageReq of conn {cid}")]
-    NoMessage { cid: String },
+    #[error("No Message in MessageReq of conn {sid}")]
+    NoMessage { sid: String },
 }
 
 pub fn build_http_proxy<G>(pusher: G) -> Option<HttpProxy<G>>

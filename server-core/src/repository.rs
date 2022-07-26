@@ -10,10 +10,10 @@ fn gen_index_key(namespace: &str, k: &str, v: &str) -> String {
 
 type ConnId = String;
 type Namespace = String;
-type ChannelFamily = String;
-type Channels = HashSet<String>;
+type RoomPrefix = String;
+type Rooms = HashSet<String>;
 type IndexKey = String;
-type NsChannelMap = HashMap<Namespace, HashMap<ChannelFamily, Channels>>;
+type NsChannelMap = HashMap<Namespace, HashMap<RoomPrefix, Rooms>>;
 
 #[derive(Debug, Clone)]
 pub struct MemoryRepository {
@@ -29,21 +29,18 @@ impl MemoryRepository {
         }
     }
 
-    pub fn search_by_channel(
+    pub fn search_by_room(
         &self,
         ns: &str,
-        channel_family: &str,
-        channels: Option<&[String]>,
-    ) -> HashMap<Conn, Channels> {
+        room_prefix: &str,
+        rooms: Option<&[String]>,
+    ) -> HashMap<Conn, Rooms> {
         let mut rv: HashMap<Conn, HashSet<String>> = HashMap::new();
-        if channels.is_none() {
+        if rooms.is_none() {
             return rv;
         }
-        for channel in channels.unwrap() {
-            if let Some(conns) = self
-                .indexing
-                .get(&gen_index_key(ns, channel_family, channel))
-            {
+        for channel in rooms.unwrap() {
+            if let Some(conns) = self.indexing.get(&gen_index_key(ns, room_prefix, channel)) {
                 conns.iter().for_each(|conn| {
                     rv.entry(conn.clone()).or_default().insert(channel.clone());
                 });
@@ -53,78 +50,78 @@ impl MemoryRepository {
     }
 
     #[allow(dead_code)]
-    pub fn search_all_channels(&self, ns: &str, channel_family: &str) -> Channels {
-        let mut channels: HashSet<String> = HashSet::new();
+    pub fn search_all_channels(&self, ns: &str, room_prefix: &str) -> Rooms {
+        let mut rooms: HashSet<String> = HashSet::new();
         self.storage.iter().for_each(|ns_channels| {
             if let Some(ns_channels) = ns_channels.get(ns) {
-                if let Some(c) = ns_channels.get(channel_family) {
-                    channels.extend(c.clone())
+                if let Some(c) = ns_channels.get(room_prefix) {
+                    rooms.extend(c.clone())
                 }
             }
         });
-        channels
+        rooms
     }
 
-    pub fn subscribe_channel(&self, conn: Conn, ns: &str, channel_family: &str, channel: &str) {
+    pub fn join_room(&self, conn: Conn, ns: &str, room_prefix: &str, channel: &str) {
         let mut channel_map = HashMap::new();
-        channel_map.insert(channel_family.to_owned(), channel.to_owned());
+        channel_map.insert(room_prefix.to_owned(), channel.to_owned());
         self.store(&conn, ns, &channel_map);
-        self.index(conn, ns, channel_family, channel);
+        self.index(conn, ns, room_prefix, channel);
     }
 
-    pub fn unsubscribe_channel(&self, conn: &Conn, ns: &str, channel_family: &str, channel: &str) {
+    pub fn leave_room(&self, conn: &Conn, ns: &str, room_prefix: &str, channel: &str) {
         let mut removed = None;
         if let Some(mut ns_channels) = self.storage.get_mut(conn.id()) {
-            if let Some(channels) = ns_channels.get_mut(ns) {
-                if let Some(channels) = channels.get_mut(channel_family) {
-                    if channels.remove(channel) {
+            if let Some(rooms) = ns_channels.get_mut(ns) {
+                if let Some(rooms) = rooms.get_mut(room_prefix) {
+                    if rooms.remove(channel) {
                         removed = Some(channel);
                     }
                 }
             }
         }
         if let Some(removed_channel) = removed {
-            self.remove_index(conn, ns, channel_family, removed_channel);
+            self.remove_index(conn, ns, room_prefix, removed_channel);
         }
     }
 
-    pub fn bulk_subscribe_channel(&self, conn: Conn, ns: &str, channels: &HashMap<String, String>) {
-        self.store(&conn, ns, channels);
-        channels.iter().for_each(|(channel_family, channel)| {
-            self.index(conn.clone(), ns, channel_family, channel);
+    pub fn bulk_join_room(&self, conn: Conn, ns: &str, rooms: &HashMap<String, String>) {
+        self.store(&conn, ns, rooms);
+        rooms.iter().for_each(|(room_prefix, channel)| {
+            self.index(conn.clone(), ns, room_prefix, channel);
         });
     }
 
     pub fn remove_channels(&self, conn: &Conn) {
         if let Some((_conn_id, ns_channels)) = self.storage.remove(conn.id()) {
-            for (ns, channels) in ns_channels.iter() {
-                for (channel_family, channels) in channels.iter() {
-                    for channel in channels.iter() {
-                        self.remove_index(conn, ns, channel_family, channel);
+            for (ns, rooms) in ns_channels.iter() {
+                for (room_prefix, rooms) in rooms.iter() {
+                    for channel in rooms.iter() {
+                        self.remove_index(conn, ns, room_prefix, channel);
                     }
                 }
             }
         }
     }
 
-    pub fn list_ns_channels(&self, cid: &str) -> Option<NsChannelMap> {
+    pub fn list_ns_channels(&self, sid: &str) -> Option<NsChannelMap> {
         // too expansive to trace latency here
         self.storage
-            .get(cid)
+            .get(sid)
             .map(|ns_channels| (*ns_channels).clone())
     }
 
-    pub fn list_channels(&self, cid: &str, ns: &str) -> Option<HashMap<ChannelFamily, Channels>> {
+    pub fn list_channels(&self, sid: &str, ns: &str) -> Option<HashMap<RoomPrefix, Rooms>> {
         // too expansive to trace latency here
-        self.storage.get(cid).and_then(|conn| conn.get(ns).cloned())
+        self.storage.get(sid).and_then(|conn| conn.get(ns).cloned())
     }
 
-    fn store(&self, conn: &Conn, ns: &str, channels: &HashMap<String, String>) {
+    fn store(&self, conn: &Conn, ns: &str, rooms: &HashMap<String, String>) {
         let mut ns_channels = self.storage.entry(conn.id().to_owned()).or_default();
         let ns_channel = ns_channels.entry(ns.to_owned()).or_default();
-        channels.iter().for_each(|(channel_family, channel)| {
-            let channels = ns_channel.entry(channel_family.to_owned()).or_default();
-            channels.insert(channel.to_owned());
+        rooms.iter().for_each(|(room_prefix, channel)| {
+            let rooms = ns_channel.entry(room_prefix.to_owned()).or_default();
+            rooms.insert(channel.to_owned());
         });
     }
 
@@ -135,8 +132,8 @@ impl MemoryRepository {
             .insert(conn);
     }
 
-    fn remove_index(&self, conn: &Conn, ns: &str, channel_family: &str, channel: &str) {
-        let index_key = gen_index_key(ns, channel_family, channel);
+    fn remove_index(&self, conn: &Conn, ns: &str, room_prefix: &str, channel: &str) {
+        let index_key = gen_index_key(ns, room_prefix, channel);
         let mut hit = false;
         let mut empty = false;
         if let Some(mut conns) = self.indexing.get_mut(&index_key) {
@@ -177,8 +174,8 @@ mod tests {
     fn test_unbind() {
         let m = bind_some();
         let conn_2 = mock_conn_sender("conn_2");
-        m.unsubscribe_channel(&conn_2, "ns", "os", "ios");
-        m.unsubscribe_channel(&conn_2, "ns", "uid", "2002");
+        m.leave_room(&conn_2, "ns", "os", "ios");
+        m.leave_room(&conn_2, "ns", "uid", "2002");
         assert!(m.storage.contains_key("conn_1"));
         assert!(m.storage.contains_key("conn_2"));
         assert!(m.indexing.contains_key("ns::uid::2001"));
@@ -187,7 +184,7 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_conn_channels() {
+    fn test_remove_conn_rooms() {
         let m = bind_some();
         let conn_2 = mock_conn_sender("conn_2");
         m.remove_channels(&conn_2);
@@ -247,7 +244,7 @@ mod tests {
     #[test]
     fn test_search_by_channels() {
         let m = bind_some();
-        let res = m.search_by_channel("ns", "uid", Some(&["2001".to_owned(), "2002".to_owned()]));
+        let res = m.search_by_room("ns", "uid", Some(&["2001".to_owned(), "2002".to_owned()]));
         let mut expect: HashMap<Conn, HashSet<String>> = HashMap::new();
         expect
             .entry(mock_conn_sender("conn_1"))
@@ -264,12 +261,12 @@ mod tests {
         let m = MemoryRepository::new();
         let conn = mock_conn_sender("conn_1");
         let ns = "ns";
-        m.subscribe_channel(conn, ns, "uid", "2001");
-        let mut channels = HashMap::new();
-        channels.insert("uid".to_owned(), "2002".to_owned());
-        channels.insert("os".to_owned(), "ios".to_owned());
+        m.join_room(conn, ns, "uid", "2001");
+        let mut rooms = HashMap::new();
+        rooms.insert("uid".to_owned(), "2002".to_owned());
+        rooms.insert("os".to_owned(), "ios".to_owned());
         let conn = mock_conn_sender("conn_2");
-        m.bulk_subscribe_channel(conn, ns, &channels);
+        m.bulk_join_room(conn, ns, &rooms);
         m
     }
 
@@ -278,25 +275,25 @@ mod tests {
         let m = MemoryRepository::new();
         let conn = mock_conn_sender("conn_1");
         let ns = "ns";
-        let channel_family = "key";
+        let room_prefix = "key";
         let channel_1 = "value1";
         let channel_2 = "value2";
-        m.index(conn.clone(), ns, channel_family, channel_1);
-        m.index(conn.clone(), ns, channel_family, channel_2);
+        m.index(conn.clone(), ns, room_prefix, channel_1);
+        m.index(conn.clone(), ns, room_prefix, channel_2);
         assert!(m
             .indexing
-            .contains_key(&gen_index_key(ns, channel_family, channel_1)));
+            .contains_key(&gen_index_key(ns, room_prefix, channel_1)));
         assert!(m
             .indexing
-            .contains_key(&gen_index_key(ns, channel_family, channel_2)));
+            .contains_key(&gen_index_key(ns, room_prefix, channel_2)));
 
-        m.remove_index(&conn, ns, channel_family, channel_1);
+        m.remove_index(&conn, ns, room_prefix, channel_1);
         assert!(!m
             .indexing
-            .contains_key(&gen_index_key(ns, channel_family, channel_1)));
+            .contains_key(&gen_index_key(ns, room_prefix, channel_1)));
         assert!(m
             .indexing
-            .contains_key(&gen_index_key(ns, channel_family, channel_2)));
+            .contains_key(&gen_index_key(ns, room_prefix, channel_2)));
     }
 
     #[derive(Default)]
@@ -354,10 +351,10 @@ mod tests {
             let join = std::thread::spawn(move || {
                 for i in start..end {
                     let conn = mock_conn_sender(&format!("conn_{}", i));
-                    let mut channels = HashMap::new();
-                    channels.insert("uid".to_owned(), format!("uid_{}", i));
-                    channels.insert("os".to_owned(), "ios".to_owned());
-                    mc.bulk_subscribe_channel(conn, "ns", &channels);
+                    let mut rooms = HashMap::new();
+                    rooms.insert("uid".to_owned(), format!("uid_{}", i));
+                    rooms.insert("os".to_owned(), "ios".to_owned());
+                    mc.bulk_join_room(conn, "ns", &rooms);
                 }
             });
             joins.push(join);
@@ -378,7 +375,7 @@ mod tests {
             let join = std::thread::spawn(move || {
                 for i in start..end {
                     let conn = mock_conn_sender(&format!("conn_{}", i));
-                    mc.unsubscribe_channel(&conn, "ns", "uid", &format!("uid_{}", i));
+                    mc.leave_room(&conn, "ns", "uid", &format!("uid_{}", i));
                 }
             });
             joins.push(join);

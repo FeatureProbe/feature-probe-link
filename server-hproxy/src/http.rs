@@ -48,12 +48,12 @@ impl TryFrom<MessageReq> for HpRequestBuilder {
     fn try_from(item: MessageReq) -> Result<Self, Self::Error> {
         let message = match item.message {
             Some(m) => m,
-            None => return Err(Error::NoMessage { cid: item.cid }),
+            None => return Err(Error::NoMessage { sid: item.sid }),
         };
         let mut metadata = message.metadata.clone();
         let method = metadata.remove(METHOD);
         let call_id = metadata.remove(CALL_ID);
-        let conn_id = item.cid.clone();
+        let conn_id = item.sid.clone();
         let url = message.path;
         let body = message.body;
 

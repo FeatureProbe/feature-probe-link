@@ -1,8 +1,8 @@
 use cached::proc_macro::cached;
 use parking_lot::Mutex;
 use server_base::proto::{
-    link_service_client::LinkServiceClient, BulkPubResp, BulkSubReq, ConnChannels, GetChannelsReq,
-    GetConnsReq, PubReq, PubResp, PubStatus, PushConnReq, SubReq, UnSubReq,
+    link_service_client::LinkServiceClient, BulkEmitResp, BulkJoinReq, ConnRoomReq, ConnRooms,
+    EmitReq, EmitResp, EmitSidReq, EmitStatus, GetRoomsReq, JoinReq, LeaveReq,
 };
 use server_base::{minstant, tokio, tokio::sync::oneshot, tonic, HandyRwLock};
 use server_state::Clusters;
@@ -34,7 +34,7 @@ impl Default for ClusterForwarder {
 
 #[derive(Debug)]
 enum BulkRequest {
-    Publish(PubReq, oneshot::Sender<Vec<PubResp>>),
+    Emit(EmitReq, oneshot::Sender<Vec<EmitResp>>),
 }
 
 #[cached(time = 60)]
@@ -71,73 +71,69 @@ impl ClusterForwarder {
         }
     }
 
-    pub async fn subscribe(&self, node_id: &str, request: SubReq) -> Result<bool, tonic::Status> {
+    pub async fn join(&self, node_id: &str, request: JoinReq) -> Result<bool, tonic::Status> {
         if let Some(client) = self.cluster.pick_client(node_id) {
             let response = LinkServiceClient::new(client)
-                .subscribe(timeout(request))
+                .join(timeout(request))
                 .await?
                 .into_inner();
             return Ok(response.success);
         }
         log::error!(
-            "bind_tag failed: not found client for connectionId: {}",
-            &request.cid
+            "join failed: not found client for connectionId: {}",
+            &request.sid
         );
         Ok(false)
     }
 
-    pub async fn unsubscribe(
-        &self,
-        node_id: &str,
-        request: UnSubReq,
-    ) -> Result<bool, tonic::Status> {
+    pub async fn leave(&self, node_id: &str, request: LeaveReq) -> Result<bool, tonic::Status> {
         if let Some(client) = self.cluster.pick_client(node_id) {
             let response = LinkServiceClient::new(client)
-                .unsubscribe(timeout(request))
+                .leave(timeout(request))
                 .await?
                 .into_inner();
             return Ok(response.success);
         }
 
         log::warn!(
-            "unbind_tag failed, no client for nodeId: {}, connId: {}",
+            "leave failed, no client for nodeId: {}, connId: {}",
             node_id,
-            &request.cid
+            &request.sid
         );
         Ok(false)
     }
 
-    pub async fn bulk_subscribe(
+    pub async fn bulk_join(
         &self,
         node_id: &str,
-        request: BulkSubReq,
+        request: BulkJoinReq,
     ) -> Result<bool, tonic::Status> {
         if let Some(client) = self.cluster.pick_client(node_id) {
             let response = LinkServiceClient::new(client)
-                .bulk_subscribe(timeout(request))
+                .bulk_join(timeout(request))
                 .await?
                 .into_inner();
             return Ok(response.success);
         }
-        log::warn!("bulk_subscribe failed, no client for cid: {}", &request.cid);
+        log::warn!("bulk_join failed, no client for sid: {}", &request.sid);
         Ok(false)
     }
 
-    pub async fn push_conn(
+    pub async fn emit_sid(
         &self,
         node_id: &str,
-        request: PushConnReq,
+        request: EmitSidReq,
     ) -> Result<bool, tonic::Status> {
         if let Some(client) = self.cluster.pick_client(node_id) {
             let response = LinkServiceClient::new(client)
-                .push_conn(timeout(request))
+                .emit_sid(timeout(request))
                 .await?
                 .into_inner();
             return Ok(response.success);
         }
         log::warn!(
-            "push_conn failed: no client for connectionId: {}",
-            &request.cid
+            "emit_sid failed: no client for connectionId: {}",
+            &request.sid
         );
         Ok(false)
     }
@@ -155,25 +151,25 @@ impl ClusterForwarder {
         vec
     }
 
-    pub async fn publish(&self, request: PubReq) -> PubResp {
+    pub async fn emit(&self, request: EmitReq) -> EmitResp {
         let (enable_bulk, _, _) = (self.grpc_bulk)();
         if enable_bulk {
-            self.publish_bulk(request).await
+            self.emit_bulk(request).await
         } else {
-            self.publish_one_shot(request).await
+            self.emit_one_shot(request).await
         }
     }
-    pub async fn publish_one_shot(&self, request: PubReq) -> PubResp {
+    pub async fn emit_one_shot(&self, request: EmitReq) -> EmitResp {
         // TODO: Vec capacity from conf
         let mut futures = vec![];
         for (_node_id, client) in self.cluster.get_clients().rl().iter() {
             let mut client = LinkServiceClient::new(client.to_owned());
             let request = request.clone();
-            futures.push(async move { client.publish(timeout(request)).await });
+            futures.push(async move { client.emit(timeout(request)).await });
         }
-        let mut channels: HashSet<String> = HashSet::new();
+        let mut rooms: HashSet<String> = HashSet::new();
         let mut success = true;
-        let mut status: Vec<PubStatus> = vec![];
+        let mut status: Vec<EmitStatus> = vec![];
 
         futures::future::join_all(futures)
             .await
@@ -182,64 +178,64 @@ impl ClusterForwarder {
                 Ok(resp) => {
                     let resp = resp.into_inner();
                     success = success && resp.success;
-                    channels.extend(resp.channels);
+                    rooms.extend(resp.rooms);
                     status.extend(resp.status);
                 }
                 Err(e) => log::warn!("push_by_tags failed: {}", e),
             });
-        PubResp {
+        EmitResp {
             success,
-            channels: channels.into_iter().collect(),
+            rooms: rooms.into_iter().collect(),
             status,
         }
     }
 
-    pub async fn publish_bulk(&self, request: PubReq) -> PubResp {
+    pub async fn emit_bulk(&self, request: EmitReq) -> EmitResp {
         let (tx, rx) = oneshot::channel();
         let trigger = self.bulk_trigger.generate();
         let request_clone = request.clone();
-        let bulk_request = BulkRequest::Publish(request_clone, tx);
+        let bulk_request = BulkRequest::Emit(request_clone, tx);
         self.append_bulk_request(bulk_request);
         let mut should_trigger = trigger.is_now;
 
         if let Some(interval) = trigger.interval {
-            log::trace!("publish should wait {}", interval);
+            log::trace!("emit should wait {}", interval);
             tokio::time::sleep(tokio::time::Duration::from_micros(interval)).await;
             should_trigger = true;
         }
         if should_trigger {
-            log::trace!("publish_bulk should trigger");
-            self.inner_publish_bulk().await;
+            log::trace!("emit_bulk should trigger");
+            self.inner_emit_bulk().await;
         }
 
-        let mut channels: HashSet<String> = HashSet::new();
+        let mut rooms: HashSet<String> = HashSet::new();
         let mut success = true;
-        let mut status: Vec<PubStatus> = vec![];
+        let mut status: Vec<EmitStatus> = vec![];
         match rx.await {
             Ok(rs) => {
                 log::trace!("push_by_tags_bulk recv response {:?}", rs);
                 rs.into_iter().for_each(|resp| {
                     success = success && resp.success;
-                    channels.extend(resp.channels);
+                    rooms.extend(resp.rooms);
                     status.extend(resp.status);
                 });
             }
             Err(e) => log::error!("push_by_tags failed: {}", e),
         };
 
-        PubResp {
+        EmitResp {
             success,
-            channels: channels.into_iter().collect(),
+            rooms: rooms.into_iter().collect(),
             status,
         }
     }
 
-    pub async fn get_conn_channels(&self, request: GetConnsReq) -> Vec<ConnChannels> {
+    pub async fn get_conn_rooms(&self, request: ConnRoomReq) -> Vec<ConnRooms> {
         let mut futures = vec![];
         for (_node_id, client) in self.cluster.get_clients().rl().iter() {
             let mut client = LinkServiceClient::new(client.to_owned());
             let request = request.clone();
-            futures.push(async move { client.get_conn_channels(timeout(request)).await });
+            futures.push(async move { client.get_conn_rooms(timeout(request)).await });
         }
         let mut conn_vec = vec![];
         futures::future::join_all(futures)
@@ -248,20 +244,20 @@ impl ClusterForwarder {
             .for_each(|result| match result {
                 Ok(resp) => {
                     let resp = resp.into_inner();
-                    conn_vec.extend(resp.conn_channels);
+                    conn_vec.extend(resp.rooms);
                 }
-                Err(e) => log::warn!("get_conn_channels failed: {}", e),
+                Err(e) => log::warn!("get_conn_rooms failed: {}", e),
             });
 
         conn_vec
     }
 
-    pub async fn get_channels(&self, request: GetChannelsReq) -> Vec<String> {
+    pub async fn get_rooms(&self, request: GetRoomsReq) -> Vec<String> {
         let mut futures = vec![];
         for (_node_id, client) in self.cluster.get_clients().rl().iter() {
             let mut client = LinkServiceClient::new(client.to_owned());
             let request = request.clone();
-            futures.push(async move { client.get_channels(timeout(request)).await });
+            futures.push(async move { client.get_rooms(timeout(request)).await });
         }
         let mut vec = vec![];
         futures::future::join_all(futures)
@@ -270,31 +266,31 @@ impl ClusterForwarder {
             .for_each(|result| match result {
                 Ok(resp) => {
                     let resp = resp.into_inner();
-                    if let Some(channels) = resp.channels {
-                        vec.extend(channels.channels);
+                    if let Some(rooms) = resp.rooms {
+                        vec.extend(rooms.rooms);
                     }
                 }
-                Err(e) => log::warn!("get_channels failed: {}", e),
+                Err(e) => log::warn!("get_rooms failed: {}", e),
             });
 
         vec
     }
 
-    async fn inner_publish_bulk(&self) {
+    async fn inner_emit_bulk(&self) {
         let requests = self.clear_bulk_request();
-        log::debug!("inner_publish_bulk {} requests", requests.len());
+        log::debug!("inner_emit_bulk {} requests", requests.len());
         let mut rs = Vec::new();
         let mut txs = Vec::new();
         for r in requests {
             match r {
-                BulkRequest::Publish(r, t) => {
+                BulkRequest::Emit(r, t) => {
                     rs.push(r);
                     txs.push(t);
                 }
             }
         }
-        let futures = self.publish_bulk_futures(rs);
-        let mut client_responses: Vec<VecDeque<PubResp>> = Vec::with_capacity(txs.len());
+        let futures = self.emit_bulk_futures(rs);
+        let mut client_responses: Vec<VecDeque<EmitResp>> = Vec::with_capacity(txs.len());
         futures::future::join_all(futures)
             .await
             .into_iter()
@@ -308,7 +304,7 @@ impl ClusterForwarder {
                     client_responses.push(VecDeque::with_capacity(0));
                 }
             });
-        log::trace!("inner_publish_bulk each responses {:?}", client_responses);
+        log::trace!("inner_emit_bulk each responses {:?}", client_responses);
         for tx in txs {
             let mut v = vec![];
             for client_response in &mut client_responses {
@@ -317,50 +313,50 @@ impl ClusterForwarder {
                 }
             }
             if let Err(e) = tx.send(v) {
-                log::error!("inner_publish_bulk error: {:?}", e);
+                log::error!("inner_emit_bulk error: {:?}", e);
             }
         }
     }
 
     #[cfg(not(test))]
-    fn publish_bulk_futures(
+    fn emit_bulk_futures(
         &self,
-        rs: Vec<PubReq>,
-    ) -> Vec<impl futures::Future<Output = Result<tonic::Response<BulkPubResp>, tonic::Status>>>
+        rs: Vec<EmitReq>,
+    ) -> Vec<impl futures::Future<Output = Result<tonic::Response<BulkEmitResp>, tonic::Status>>>
     {
-        use server_base::proto::BulkPubReq;
+        use server_base::proto::BulkEmitReq;
 
         let mut futures = vec![];
         for (_node_id, client) in self.cluster.get_clients().rl().iter() {
             let mut client = LinkServiceClient::new(client.to_owned());
-            let request = BulkPubReq {
+            let request = BulkEmitReq {
                 requests: rs.clone(),
             };
-            futures.push(async move { client.bulk_publish(timeout(request)).await });
+            futures.push(async move { client.bulk_emit(timeout(request)).await });
         }
         futures
     }
 
     #[cfg(test)]
-    fn publish_bulk_futures(
+    fn emit_bulk_futures(
         &self,
-        rs: Vec<PubReq>,
-    ) -> Vec<impl futures::Future<Output = Result<tonic::Response<BulkPubResp>, tonic::Status>>>
+        rs: Vec<EmitReq>,
+    ) -> Vec<impl futures::Future<Output = Result<tonic::Response<BulkEmitResp>, tonic::Status>>>
     {
         let mut responses = vec![];
         for r in rs {
-            let response = PubResp {
+            let response = EmitResp {
                 success: true,
-                status: vec![PubStatus {
-                    conn_channels: None,
+                status: vec![EmitStatus {
+                    rooms: None,
                     sent: true,
                 }],
-                channels: r.channels,
+                rooms: r.rooms,
             };
             responses.push(response);
         }
         let mut futures = vec![];
-        futures.push(async move { Ok(tonic::Response::new(BulkPubResp { responses })) });
+        futures.push(async move { Ok(tonic::Response::new(BulkEmitResp { responses })) });
         futures
     }
 }
@@ -444,16 +440,16 @@ mod tests {
     use std::thread::sleep;
 
     #[tokio::test]
-    async fn test_publish_bulk() {
+    async fn test_emit_bulk() {
         let forwarder = ClusterForwarder::new_for_test(|| (true, 10, 10));
         let mut futures = vec![];
         for i in 0..5 {
-            let request = PubReq {
-                channel_family: Some("mock".to_owned()),
-                channels: vec![format!("{}", i)],
+            let request = EmitReq {
+                room_prefix: Some("mock".to_owned()),
+                rooms: vec![format!("{}", i)],
                 ..Default::default()
             };
-            futures.push(async { forwarder.publish(request).await });
+            futures.push(async { forwarder.emit(request).await });
         }
         let mut i = 0;
         futures::future::join_all(futures)

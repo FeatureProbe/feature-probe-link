@@ -9,19 +9,19 @@ use std::sync::Arc;
 
 struct Inner {
     operator: CoreOperator,
-    cid_gen: IdGen,
+    sid_gen: IdGen,
     builtin_services: Arc<HashMap<String, Arc<dyn BuiltinService>>>,
 }
 
 impl Inner {
     pub fn new(
         operator: CoreOperator,
-        cid_gen: IdGen,
+        sid_gen: IdGen,
         builtin_services: Arc<HashMap<String, Arc<dyn BuiltinService>>>,
     ) -> Self {
         Self {
             operator,
-            cid_gen,
+            sid_gen,
             builtin_services,
         }
     }
@@ -35,10 +35,10 @@ pub struct ConnLifeCycle {
 impl ConnLifeCycle {
     pub fn new(
         operator: CoreOperator,
-        cid_gen: IdGen,
+        sid_gen: IdGen,
         builtin_services: Arc<HashMap<String, Arc<dyn BuiltinService>>>,
     ) -> Self {
-        let inner = Arc::new(Inner::new(operator, cid_gen, builtin_services));
+        let inner = Arc::new(Inner::new(operator, sid_gen, builtin_services));
         Self { inner }
     }
 
@@ -52,7 +52,7 @@ impl ConnLifeCycle {
 
 impl LifeCycle for ConnLifeCycle {
     fn new_conn_id(&self, protocol: Protocol) -> String {
-        self.inner.cid_gen.conn_id(protocol)
+        self.inner.sid_gen.conn_id(protocol)
     }
 
     /// connection create, connection can bind id from return value

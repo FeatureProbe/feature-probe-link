@@ -4,7 +4,7 @@ use cached::proc_macro::cached;
 use regex::Regex;
 use reqwest::header::HeaderMap;
 use reqwest::Client as HttpClient;
-use server_base::proto::{Message, MessageReq, PushConnReq};
+use server_base::proto::{EmitSidReq, Message, MessageReq};
 use server_base::{BuiltinService, Hproxy, PushConn};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -66,11 +66,11 @@ impl<G: PushConn + Clone> Inner<G> {
 #[async_trait]
 impl<G: PushConn + Clone + Send + Sync> BuiltinService for HttpProxy<G> {
     async fn on_message(&self, conn_id: &str, peer_addr: Option<SocketAddr>, mut message: Message) {
-        let cid = conn_id.to_string();
+        let sid = conn_id.to_string();
         add_forwarded(&mut message.metadata, peer_addr);
         add_real_ip(&mut message.metadata, peer_addr);
         self.handle_request(MessageReq {
-            cid,
+            sid,
             message: Some(message),
             ..Default::default()
         })
@@ -201,7 +201,7 @@ async fn grpc_push_request(
     resp: ResponseResult,
     conn_id: &str,
     call_id: Option<&String>,
-) -> PushConnReq {
+) -> EmitSidReq {
     let mut metadata: HashMap<String, String> = HashMap::new();
     let mut message = Message::default();
     if let Some(call_id) = call_id {
@@ -246,8 +246,8 @@ async fn grpc_push_request(
     }
     message.metadata = metadata;
 
-    PushConnReq {
-        cid: conn_id.to_owned(),
+    EmitSidReq {
+        sid: conn_id.to_owned(),
         message: Some(message),
         trace: None,
     }
@@ -282,7 +282,7 @@ mod tests {
 
     #[async_trait]
     impl PushConn for MockGrpcClient {
-        async fn push(&self, resp: PushConnReq) {
+        async fn push(&self, resp: EmitSidReq) {
             assert!(resp.message.is_some());
             let message = resp.message.unwrap();
             let metadata = message.metadata;

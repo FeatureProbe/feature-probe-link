@@ -33,7 +33,7 @@ lazy_static! {
 
 #[async_trait]
 pub trait PushConn: Send + Sync {
-    async fn push(&self, req: PushConnReq);
+    async fn push(&self, req: EmitSidReq);
 }
 
 #[async_trait]
@@ -48,19 +48,19 @@ pub trait BuiltinService: Send + Sync {
 
 #[async_trait]
 pub trait CoreOperation: Send + Sync + Clone + 'static {
-    async fn subscribe(&self, request: SubReq) -> bool;
+    async fn join(&self, request: JoinReq) -> bool;
 
-    async fn unsubscribe(&self, request: UnSubReq) -> bool;
+    async fn leave(&self, request: LeaveReq) -> bool;
 
-    async fn bulk_subscribe(&self, request: BulkSubReq) -> bool;
+    async fn bulk_join(&self, request: BulkJoinReq) -> bool;
 
-    async fn publish(&self, request: PubReq) -> PubResp;
+    async fn emit(&self, request: EmitReq) -> EmitResp;
 
-    async fn push_conn(&self, request: PushConnReq) -> bool;
+    async fn emit_sid(&self, request: EmitSidReq) -> bool;
 
-    async fn get_conn_channels(&self, request: GetConnsReq) -> Vec<ConnChannels>;
+    async fn get_conn_rooms(&self, request: ConnRoomReq) -> Vec<ConnRooms>;
 
-    async fn get_channels(&self, request: GetChannelsReq) -> Vec<String>;
+    async fn get_rooms(&self, request: GetRoomsReq) -> Vec<String>;
 }
 
 pub trait LifeCycle: Send + Sync {

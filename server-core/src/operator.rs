@@ -3,8 +3,8 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use fxhash::FxBuildHasher;
 use server_base::proto::{
-    BulkSubReq, Channels, ConnChannels, GetChannelsReq, GetConnsReq, Message, MessageReq, PubReq,
-    PubResp, PubStatus, PushConnReq, SubReq, UnSubReq,
+    BulkJoinReq, ConnRoomReq, ConnRooms, EmitReq, EmitResp, EmitSidReq, EmitStatus, GetRoomsReq,
+    JoinReq, LeaveReq, Message, MessageReq, Rooms,
 };
 use server_base::{tokio, Conn, CoreOperation, Dispatch, PushConn};
 use std::borrow::ToOwned;
@@ -42,24 +42,24 @@ impl CoreOperator {
         self.inner.conns.get(conn_id).map(|conn| (*conn).clone())
     }
 
-    fn publish_to(
+    fn emit_to(
         &self,
         namespace: &str,
         message: Message,
         conn: &Conn,
         hitting: &HashSet<String>,
-    ) -> Option<(bool, HashSet<String>, PubStatus)> {
-        let mut sent_channels: HashSet<String> = HashSet::new();
+    ) -> Option<(bool, HashSet<String>, EmitStatus)> {
+        let mut sent_rooms: HashSet<String> = HashSet::new();
         if self.push_to_conn(conn.id(), message).is_ok() {
-            sent_channels = &sent_channels | hitting;
-            let mut status = PubStatus {
-                conn_channels: None,
+            sent_rooms = &sent_rooms | hitting;
+            let mut status = EmitStatus {
+                rooms: None,
                 sent: true,
             };
-            if let Some(c) = self.conn_channels(conn, namespace) {
-                status.conn_channels = Some(c);
+            if let Some(c) = self.conn_rooms(conn, namespace) {
+                status.rooms = Some(c);
             }
-            Some((true, sent_channels, status))
+            Some((true, sent_rooms, status))
         } else {
             // sender use unbounded_channel, send will not return error unless closed
             // only when connection is gone, push failed is ok
@@ -97,12 +97,12 @@ impl CoreOperator {
         let namespace = message.namespace.clone();
         let channel_map = self.list_channels(conn_id, &namespace);
 
-        let channels: HashMap<String, Channels> = if let Some(channels) = channel_map {
-            channels
+        let rooms: HashMap<String, Rooms> = if let Some(rooms) = channel_map {
+            rooms
                 .iter()
                 .map(|(k, vs)| {
-                    let cs = Channels {
-                        channels: vs.iter().cloned().collect::<Vec<String>>(),
+                    let cs = Rooms {
+                        rooms: vs.iter().cloned().collect::<Vec<String>>(),
                     };
                     (k.clone(), cs)
                 })
@@ -111,7 +111,7 @@ impl CoreOperator {
             Default::default()
         };
         let request = MessageReq {
-            cid: conn_id.to_string(),
+            sid: conn_id.to_string(),
             message: Some(Message {
                 namespace: namespace.clone(),
                 metadata: message.metadata,
@@ -119,7 +119,7 @@ impl CoreOperator {
                 body: message.body.to_vec(),
                 expire_at: None,
             }),
-            channels,
+            rooms,
             trace: None,
         };
         let s = self.clone();
@@ -133,22 +133,22 @@ impl CoreOperator {
 
     //---------------channel operation-----------------------------
 
-    fn subscribe_operation(
+    fn join_operation(
         &self,
         conn_id: &str,
         namespace: &str,
-        channel_family: &str,
+        room_prefix: &str,
         channel: &str,
     ) -> bool {
         if let Some(conn) = self.conn(conn_id) {
             self.inner
                 .repository
-                .subscribe_channel(conn, namespace, channel_family, channel);
+                .join_room(conn, namespace, room_prefix, channel);
             log::info!(
-                "_fplink_subscribe||conn_id={}||ns={}||cf={}|channel={}",
+                "_fplink_join||conn_id={}||ns={}||cf={}|channel={}",
                 conn_id,
                 namespace,
-                channel_family,
+                room_prefix,
                 channel
             );
             return true;
@@ -156,48 +156,44 @@ impl CoreOperator {
         false
     }
 
-    fn bulk_subscribe_operation(
+    fn bulk_join_operation(
         &self,
         conn_id: &str,
         namespace: &str,
-        channels: &HashMap<String, String>,
+        rooms: &HashMap<String, String>,
     ) -> bool {
         if let Some(conn) = self.conn(conn_id) {
-            self.inner
-                .repository
-                .bulk_subscribe_channel(conn, namespace, channels);
+            self.inner.repository.bulk_join_room(conn, namespace, rooms);
             return true;
         }
         false
     }
 
-    pub fn unsubscribe_operation(&self, conn_id: &str, namespace: &str, k: &str, v: &str) -> bool {
+    pub fn leave_operation(&self, conn_id: &str, namespace: &str, k: &str, v: &str) -> bool {
         if let Some(conn) = self.conn(conn_id) {
-            self.inner
-                .repository
-                .unsubscribe_channel(&conn, namespace, k, v);
+            self.inner.repository.leave_room(&conn, namespace, k, v);
             return true;
         }
         false
     }
 
-    pub fn search_by_channel(
+    pub fn search_by_room(
         &self,
         namespace: &str,
-        channel_family: &str,
-        channels: &[String],
+        room_prefix: &str,
+        rooms: &[String],
     ) -> HashMap<Conn, HashSet<String>> {
         self.inner
             .repository
-            .search_by_channel(namespace, channel_family, Some(channels))
+            .search_by_room(namespace, room_prefix, Some(rooms))
     }
 
     pub fn list_channels(
         &self,
-        cid: &str,
+        sid: &str,
         namespace: &str,
     ) -> Option<HashMap<String, HashSet<String>>> {
-        self.inner.repository.list_channels(cid, namespace)
+        self.inner.repository.list_channels(sid, namespace)
     }
 
     pub fn list_ns_channels(
@@ -207,15 +203,15 @@ impl CoreOperator {
         self.inner.repository.list_ns_channels(conn_id)
     }
 
-    fn conn_channels(&self, conn: &Conn, namespace: &str) -> Option<ConnChannels> {
+    fn conn_rooms(&self, conn: &Conn, namespace: &str) -> Option<ConnRooms> {
         self.list_channels(conn.id(), namespace)
-            .map(|channel_map| ConnChannels {
-                cid: conn.id().to_owned(),
-                channels: channel_map
+            .map(|channel_map| ConnRooms {
+                sid: conn.id().to_owned(),
+                rooms: channel_map
                     .iter()
                     .map(|(k, vs)| {
-                        let ts = Channels {
-                            channels: vs.iter().cloned().collect::<Vec<String>>(),
+                        let ts = Rooms {
+                            rooms: vs.iter().cloned().collect::<Vec<String>>(),
                         };
                         (k.clone(), ts)
                     })
@@ -226,96 +222,92 @@ impl CoreOperator {
 
 #[async_trait]
 impl CoreOperation for CoreOperator {
-    async fn subscribe(&self, request: SubReq) -> bool {
-        let channel_family = channel_family(&request.channel_family);
-        let (connection_id, namespace, channel) =
-            (&request.cid, &request.namespace, &request.channel);
-        self.subscribe_operation(connection_id, namespace, channel_family, channel)
+    async fn join(&self, request: JoinReq) -> bool {
+        let room_prefix = room_prefix(&request.room_prefix);
+        let (connection_id, namespace, channel) = (&request.sid, &request.namespace, &request.room);
+        self.join_operation(connection_id, namespace, room_prefix, channel)
     }
 
-    async fn unsubscribe(&self, request: UnSubReq) -> bool {
-        let channel_family = channel_family(&request.channel_family);
-        let (connection_id, namespace, channel) =
-            (&request.cid, &request.namespace, &request.channel);
-        self.unsubscribe_operation(connection_id, namespace, channel_family, channel)
+    async fn leave(&self, request: LeaveReq) -> bool {
+        let room_prefix = room_prefix(&request.room_prefix);
+        let (connection_id, namespace, channel) = (&request.sid, &request.namespace, &request.room);
+        self.leave_operation(connection_id, namespace, room_prefix, channel)
     }
 
-    async fn bulk_subscribe(&self, request: BulkSubReq) -> bool {
-        let (connection_id, namespace, channels) =
-            (&request.cid, &request.namespace, &request.channels);
-        self.bulk_subscribe_operation(connection_id, namespace, channels)
+    async fn bulk_join(&self, request: BulkJoinReq) -> bool {
+        let (connection_id, namespace, rooms) = (&request.sid, &request.namespace, &request.rooms);
+        self.bulk_join_operation(connection_id, namespace, rooms)
     }
 
-    async fn push_conn(&self, request: PushConnReq) -> bool {
+    async fn emit_sid(&self, request: EmitSidReq) -> bool {
         let message = match request.message {
             Some(m) => m,
             None => return false,
         };
-        self.push_to_conn(&request.cid, message).is_ok()
+        self.push_to_conn(&request.sid, message).is_ok()
     }
 
-    async fn publish(&self, request: PubReq) -> PubResp {
+    async fn emit(&self, request: EmitReq) -> EmitResp {
         let message = match request.message {
             Some(message) => message,
             None => {
-                return PubResp {
+                return EmitResp {
                     success: false,
-                    channels: vec![],
+                    rooms: vec![],
                     status: vec![],
                 };
             }
         };
         let namespace = &message.namespace;
-        let channel_family = match request.channel_family {
+        let room_prefix = match request.room_prefix {
             Some(ref cf) => cf,
             None => "default",
         };
-        let conns_with_hitting =
-            self.search_by_channel(namespace, channel_family, &request.channels);
+        let conns_with_hitting = self.search_by_room(namespace, room_prefix, &request.rooms);
         let mut success = true;
-        let mut status: Vec<PubStatus> = vec![];
-        let mut sent_channels = HashSet::new(); // TODO allocate before updating element
+        let mut status: Vec<EmitStatus> = vec![];
+        let mut sent_rooms = HashSet::new(); // TODO allocate before updating element
 
         for (conn, hitting) in conns_with_hitting {
             if let Some((is_success, sent, s)) =
-                self.publish_to(namespace, message.clone(), &conn, &hitting)
+                self.emit_to(namespace, message.clone(), &conn, &hitting)
             {
                 success = success && is_success;
                 status.push(s);
-                sent_channels = &sent_channels | &sent;
+                sent_rooms = &sent_rooms | &sent;
             }
         }
 
-        PubResp {
+        EmitResp {
             success,
-            channels: sent_channels.into_iter().collect::<Vec<_>>(),
+            rooms: sent_rooms.into_iter().collect::<Vec<_>>(),
             status,
         }
     }
 
-    async fn get_conn_channels(&self, request: GetConnsReq) -> Vec<ConnChannels> {
+    async fn get_conn_rooms(&self, request: ConnRoomReq) -> Vec<ConnRooms> {
         let namespace = &request.namespace;
-        let channel = &request.channel;
-        let channel_family = channel_family(&request.channel_family);
+        let channel = &request.room;
+        let room_prefix = room_prefix(&request.room_prefix);
 
-        let hit_conns = self.search_by_channel(namespace, channel_family, &[channel.to_owned()]);
+        let hit_conns = self.search_by_room(namespace, room_prefix, &[channel.to_owned()]);
         hit_conns
             .iter()
-            .filter_map(|(conn, _)| self.conn_channels(conn, namespace))
+            .filter_map(|(conn, _)| self.conn_rooms(conn, namespace))
             .collect::<Vec<_>>()
     }
 
-    async fn get_channels(&self, request: GetChannelsReq) -> Vec<String> {
+    async fn get_rooms(&self, request: GetRoomsReq) -> Vec<String> {
         let ns = &request.namespace;
-        let channel_family = channel_family(&request.channel_family);
-        let mut channels_ref = None;
-        if let Some(channels) = &request.channels {
-            channels_ref = Some(channels.channels.as_slice())
+        let room_prefix = room_prefix(&request.room_prefix);
+        let mut rooms_ref = None;
+        if let Some(channels) = &request.rooms {
+            rooms_ref = Some(channels.rooms.as_slice())
         }
         let map: HashMap<Conn, HashSet<String>> =
             self.inner
                 .repository
-                .search_by_channel(ns, channel_family, channels_ref);
+                .search_by_room(ns, room_prefix, rooms_ref);
 
         let mut exist_channels = HashSet::new();
         for vals in map.values() {
@@ -330,13 +322,13 @@ impl CoreOperation for CoreOperator {
 
 #[async_trait]
 impl PushConn for CoreOperator {
-    async fn push(&self, req: PushConnReq) {
-        self.push_conn(req).await;
+    async fn push(&self, req: EmitSidReq) {
+        self.emit_sid(req).await;
     }
 }
 
-fn channel_family(channel_family: &Option<String>) -> &str {
-    match channel_family {
+fn room_prefix(room_prefix: &Option<String>) -> &str {
+    match room_prefix {
         Some(ref cf) => cf,
         None => "default",
     }

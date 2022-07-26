@@ -297,7 +297,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_manager() {
-        let _ = tracing_subscriber::fmt().with_env_filter("trace").init();
+        // let _ = tracing_subscriber::fmt().with_env_filter("trace").init();
         let manager = Arc::new(ConnManager {
             inner: Arc::new(ConnManagerInner {
                 host: "127.0.0.1:8082".to_owned(),
@@ -309,20 +309,13 @@ mod tests {
         manager.open();
 
         let message = Message {
-            namespace: "__ECHO".to_owned(),
+            namespace: "test".to_owned(),
             path: "/test".to_owned(),
             metadata: Default::default(),
             body: Default::default(),
             expire_at: None,
         };
 
-        // loop {
-        //     manager.send(message.clone());
-        //     tokio::time::sleep(Duration::from_secs(2)).await;
-        // }
-
-        manager.send(message.clone());
-        manager.send(message.clone());
         manager.send(message);
 
         tokio::time::sleep(Duration::from_secs(2)).await;

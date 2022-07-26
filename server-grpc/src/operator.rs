@@ -55,126 +55,126 @@ where
     N: NodeOperation,
     C: CoreOperation,
 {
-    async fn subscribe(&self, request: SubReq) -> bool {
-        if let Some(node_id) = IdGen::node_id(&request.cid) {
+    async fn join(&self, request: JoinReq) -> bool {
+        if let Some(node_id) = IdGen::node_id(&request.sid) {
             if self.inner.node.is_myself(&node_id) {
-                self.inner.myself.subscribe(request).await
+                self.inner.myself.join(request).await
             } else {
-                match self.inner.cluster.subscribe(&node_id, request).await {
+                match self.inner.cluster.join(&node_id, request).await {
                     Ok(is_success) => is_success,
                     Err(e) => {
-                        log::error!("bind_tag failed! err =  {:?}", e);
+                        log::error!("join failed! err = {:?}", e);
                         false
                     }
                 }
             }
         } else {
             log::error!(
-                "bind_tag failed: node_id CAN NOT be extracted from cid: {}",
-                &request.cid
+                "join failed: node_id CAN NOT be extracted from sid: {}",
+                &request.sid
             );
             false
         }
     }
 
-    async fn unsubscribe(&self, request: UnSubReq) -> bool {
-        if let Some(node_id) = IdGen::node_id(&request.cid) {
+    async fn leave(&self, request: LeaveReq) -> bool {
+        if let Some(node_id) = IdGen::node_id(&request.sid) {
             if self.inner.node.is_myself(&node_id) {
-                self.inner.myself.unsubscribe(request).await
+                self.inner.myself.leave(request).await
             } else {
-                match self.inner.cluster.unsubscribe(&node_id, request).await {
+                match self.inner.cluster.leave(&node_id, request).await {
                     Ok(is_success) => is_success,
                     Err(e) => {
-                        log::error!("unsubscribe failed! err = {:?}", e);
+                        log::error!("leave failed! err = {:?}", e);
                         false
                     }
                 }
             }
         } else {
             log::error!(
-                "unsubscribe failed: node_id CAN NOT be extracted from cid: {}",
-                &request.cid
+                "leave failed: node_id CAN NOT be extracted from sid: {}",
+                &request.sid
             );
             false
         }
     }
 
-    async fn bulk_subscribe(&self, request: BulkSubReq) -> bool {
-        if let Some(node_id) = IdGen::node_id(&request.cid) {
+    async fn bulk_join(&self, request: BulkJoinReq) -> bool {
+        if let Some(node_id) = IdGen::node_id(&request.sid) {
             if self.inner.node.is_myself(&node_id) {
-                self.inner.myself.bulk_subscribe(request).await
+                self.inner.myself.bulk_join(request).await
             } else {
-                match self.inner.cluster.bulk_subscribe(&node_id, request).await {
+                match self.inner.cluster.bulk_join(&node_id, request).await {
                     Ok(is_success) => is_success,
                     Err(e) => {
-                        log::error!("bulk_subscribe failed! err = {:?}", e);
+                        log::error!("bulk_join failed! err = {:?}", e);
                         false
                     }
                 }
             }
         } else {
             log::error!(
-                "bulk_subscribe failed: not found client for cid: {}",
-                &request.cid
+                "bulk_join failed: not found client for sid: {}",
+                &request.sid
             );
             false
         }
     }
 
-    async fn push_conn(&self, request: PushConnReq) -> bool {
-        if let Some(node_id) = IdGen::node_id(&request.cid) {
+    async fn emit_sid(&self, request: EmitSidReq) -> bool {
+        if let Some(node_id) = IdGen::node_id(&request.sid) {
             if self.inner.node.is_myself(&node_id) {
-                self.inner.myself.push_conn(request).await
+                self.inner.myself.emit_sid(request).await
             } else {
-                match self.inner.cluster.push_conn(&node_id, request).await {
+                match self.inner.cluster.emit_sid(&node_id, request).await {
                     Ok(is_success) => is_success,
                     Err(e) => {
-                        log::error!("push_conn failed! err = {:?}", e);
+                        log::error!("emit_sid failed! err = {:?}", e);
                         false
                     }
                 }
             }
         } else {
             log::error!(
-                "push_conn failed: not found client for cid: {}",
-                &request.cid
+                "emit_sid failed: not found client for sid: {}",
+                &request.sid
             );
             false
         }
     }
 
-    async fn publish(&self, request: PubReq) -> PubResp {
+    async fn emit(&self, request: EmitReq) -> EmitResp {
         let (mut local_resp, cluster_resp) = futures::join!(
-            self.inner.myself.publish(request.clone()),
-            self.inner.cluster.publish(request)
+            self.inner.myself.emit(request.clone()),
+            self.inner.cluster.emit(request)
         );
         let success = local_resp.success && cluster_resp.success;
-        let mut channels: Vec<String> = cluster_resp.channels;
+        let mut rooms: Vec<String> = cluster_resp.rooms;
         let mut status = cluster_resp.status;
         status.append(&mut local_resp.status);
-        channels.append(&mut local_resp.channels);
+        rooms.append(&mut local_resp.rooms);
         // remove duplicated
-        channels.sort();
-        channels.dedup();
+        rooms.sort();
+        rooms.dedup();
 
-        PubResp {
+        EmitResp {
             success,
-            channels,
+            rooms,
             status,
         }
     }
 
-    async fn get_conn_channels(&self, request: GetConnsReq) -> Vec<ConnChannels> {
-        let mut local_channels = self.inner.myself.get_conn_channels(request.clone()).await;
-        let mut channels = self.inner.cluster.get_conn_channels(request).await;
-        channels.append(&mut local_channels);
-        channels
+    async fn get_conn_rooms(&self, request: ConnRoomReq) -> Vec<ConnRooms> {
+        let mut local_channels = self.inner.myself.get_conn_rooms(request.clone()).await;
+        let mut rooms = self.inner.cluster.get_conn_rooms(request).await;
+        rooms.append(&mut local_channels);
+        rooms
     }
 
-    async fn get_channels(&self, request: GetChannelsReq) -> Vec<String> {
-        let mut local_channels = self.inner.myself.get_channels(request.clone()).await;
-        let mut channels = self.inner.cluster.get_channels(request).await;
-        channels.append(&mut local_channels);
-        channels
+    async fn get_rooms(&self, request: GetRoomsReq) -> Vec<String> {
+        let mut local_channels = self.inner.myself.get_rooms(request.clone()).await;
+        let mut rooms = self.inner.cluster.get_rooms(request).await;
+        rooms.append(&mut local_channels);
+        rooms
     }
 }
